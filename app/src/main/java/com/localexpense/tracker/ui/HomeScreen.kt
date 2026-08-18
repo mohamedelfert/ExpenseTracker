@@ -12,16 +12,34 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.data.Expense
+import com.localexpense.tracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun HomeScreen(
-    expenses: List<Expense>,
-    onImportClick: () -> Unit,
-    importStatusMessage: String?
+    viewModel: MainViewModel,
+    smsPermissionGranted: Boolean,
+    onRequestSmsPermission: () -> Unit,
+    onOpenAppSettings: () -> Unit,
+    onOpenRules: () -> Unit,
+    onOpenAddExpense: () -> Unit,
+    onOpenDashboard: () -> Unit
 ) {
+    val expenses by viewModel.expenses.collectAsStateWithLifecycle()
+    val importState by viewModel.importState.collectAsStateWithLifecycle()
+
+    val importStatusMessage = when (importState) {
+        is com.localexpense.tracker.viewmodel.ImportState.Running -> "جاري الاستيراد..."
+        is com.localexpense.tracker.viewmodel.ImportState.Done -> {
+            val done = importState as com.localexpense.tracker.viewmodel.ImportState.Done
+            "تم استيراد ${done.imported} من ${done.scanned} رسالة"
+        }
+        else -> null
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -43,7 +61,7 @@ fun HomeScreen(
                 )
             )
             Button(
-                onClick = onImportClick,
+                onClick = { viewModel.importFromInbox() },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B))
             ) {
                 Text("مزامنة / استيراد", color = Color.White)
@@ -68,7 +86,7 @@ fun HomeScreen(
         val currentMonthTotal = remember(expenses) {
             val currentCal = Calendar.getInstance()
             expenses.filter { expense ->
-                val expCal = Calendar.getInstance().apply { timeInMillis = expense.timestamp }
+                val expCal = Calendar.getInstance().apply { timeInMillis = expense.timestampMillis }
                 expCal.get(Calendar.MONTH) == currentCal.get(Calendar.MONTH) &&
                         expCal.get(Calendar.YEAR) == currentCal.get(Calendar.YEAR)
             }.sumOf { it.amount }
@@ -104,7 +122,7 @@ fun HomeScreen(
         } else {
             val groupedByMonth = remember(expenses) {
                 expenses.groupBy { expense ->
-                    val cal = Calendar.getInstance().apply { timeInMillis = expense.timestamp }
+                    val cal = Calendar.getInstance().apply { timeInMillis = expense.timestampMillis }
                     SimpleDateFormat("MMMM yyyy", Locale("ar")).format(cal.time)
                 }
             }
@@ -124,7 +142,7 @@ fun HomeScreen(
                         )
                     }
 
-                    val groupedByBank = monthExpenses.groupBy { it.bankName }
+                    val groupedByBank = monthExpenses.groupBy { it.source }
 
                     groupedByBank.forEach { (bankName, bankExpenses) ->
                         item {
@@ -162,7 +180,7 @@ fun HomeScreen(
 
                                     bankExpenses.forEach { expense ->
                                         val timeFormat = SimpleDateFormat("hh:mm a", Locale("ar"))
-                                        val formattedTime = timeFormat.format(Date(expense.timestamp))
+                                        val formattedTime = timeFormat.format(Date(expense.timestampMillis))
 
                                         Row(
                                             modifier = Modifier
