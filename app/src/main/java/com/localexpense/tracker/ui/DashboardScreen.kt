@@ -105,7 +105,7 @@ fun DashboardScreen(
             }
 
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f, fill = false)) {
-                itemsIndexed(totalsByCategory) { index, item ->
+                itemsIndexed(totalsByCategory) { index: Int, item: CategoryTotal ->
                     CategoryTotalRow(
                         item = item,
                         color = ChartPalette[index % ChartPalette.size],
