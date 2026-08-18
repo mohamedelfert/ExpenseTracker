@@ -5,9 +5,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ExpenseDao {
-    @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
-    fun getAllExpenses(): Flow<List<Expense>>
 
+    // 1. القراءة والمتابعة اللحظية للبيانات (Real-time Observation)
     @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
     fun observeAll(): Flow<List<Expense>>
 
@@ -20,11 +19,9 @@ interface ExpenseDao {
     @Query("SELECT categoryName AS categoryName, SUM(amount) AS total FROM expenses GROUP BY categoryName")
     fun observeTotalsByCategory(): Flow<List<CategoryTotal>>
 
+    // 2. عمليات الإضافة والتحديث والنوعية
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: Expense): Long
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(expense: Expense)
 
     @Update
     suspend fun update(expense: Expense)
@@ -32,6 +29,7 @@ interface ExpenseDao {
     @Delete
     suspend fun delete(expense: Expense)
 
+    // 3. منع تكرار المعاملات المسجلة
     @Query("SELECT COUNT(*) FROM expenses WHERE rawBody = :body AND timestamp = :timestamp")
     suspend fun exists(body: String, timestamp: Long): Int
 
