@@ -70,7 +70,7 @@ fun AppNavHost(
             AddExpenseScreen(
                 categories = categories,
                 onSaveExpense = { amount, date, category ->
-                    viewModel.addExpense(amount, date, category)
+                    viewModel.saveExpense(amount, date, category)
                 },
                 onBack = { navController.popBackStack() }
             )
