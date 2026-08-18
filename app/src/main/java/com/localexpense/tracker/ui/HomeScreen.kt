@@ -15,24 +15,29 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Wallet
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -42,6 +47,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.localexpense.tracker.data.Expense
+import com.localexpense.tracker.viewmodel.ImportState
 import com.localexpense.tracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -53,12 +59,14 @@ fun HomeScreen(
     viewModel: MainViewModel,
     smsPermissionGranted: Boolean,
     onRequestSmsPermission: () -> Unit,
+    onOpenAppSettings: () -> Unit,
     onOpenRules: () -> Unit,
     onOpenAddExpense: () -> Unit
 ) {
     val expenses by viewModel.expenses.collectAsState()
     val monthTotal by viewModel.monthTotal.collectAsState()
     val bySource by viewModel.monthTotalsBySource.collectAsState()
+    val importState by viewModel.importState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -80,7 +88,16 @@ fun HomeScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
 
             if (!smsPermissionGranted) {
-                PermissionBanner(onRequestSmsPermission)
+                PermissionBanner(
+                    onRequest = onRequestSmsPermission,
+                    onOpenSettings = onOpenAppSettings
+                )
+            } else {
+                ImportInboxCard(
+                    importState = importState,
+                    onImport = { viewModel.importFromInbox() },
+                    onDismiss = { viewModel.resetImportState() }
+                )
             }
 
             Card(
@@ -131,23 +148,85 @@ fun HomeScreen(
 }
 
 @Composable
-private fun PermissionBanner(onRequest: () -> Unit) {
+private fun PermissionBanner(onRequest: () -> Unit, onOpenSettings: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         color = MaterialTheme.colorScheme.errorContainer
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.MarkEmailUnread, contentDescription = null)
+                Spacer(Modifier.height(0.dp))
+                Text(
+                    "التطبيق محتاج إذن قراءة الرسائل عشان يسجل المصروفات تلقائيًا",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = onRequest, modifier = Modifier.fillMaxWidth()) {
+                Text("منح إذن قراءة الرسائل")
+            }
+            Spacer(Modifier.height(8.dp))
             Text(
-                "التطبيق محتاج إذن قراءة الرسائل عشان يسجل المصروفات تلقائيًا",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f)
+                "لو ضغطت \"منح الإذن\" قبل كده وماظهرش سؤال، افتح إعدادات التطبيق يدويًا وفعّل إذن الرسائل من هناك:",
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
-            IconButton(onClick = onRequest) {
-                Icon(Icons.Filled.Add, contentDescription = "منح الإذن")
+            OutlinedButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
+                Text("فتح إعدادات التطبيق")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImportInboxCard(
+    importState: ImportState,
+    onImport: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        color = MaterialTheme.colorScheme.primaryContainer
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            when (importState) {
+                is ImportState.Idle -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.CloudDownload, contentDescription = null)
+                        Text(
+                            "عندك رسائل قديمة من قبل ما تنزّل التطبيق؟",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 8.dp).weight(1f)
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
+                        Text("استيراد المصروفات من الرسائل القديمة")
+                    }
+                }
+                is ImportState.Running -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        Text(
+                            "جاري فحص الرسائل...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 12.dp)
+                        )
+                    }
+                }
+                is ImportState.Done -> {
+                    LaunchedEffect(importState) { /* keep result visible until user dismisses */ }
+                    Text(
+                        "تم فحص ${importState.scanned} رسالة، وتسجيل ${importState.imported} مصروف جديد.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                        Text("تمام")
+                    }
+                }
             }
         }
     }
@@ -203,4 +282,3 @@ private fun ExpenseRow(expense: Expense) {
         )
     }
 }
-

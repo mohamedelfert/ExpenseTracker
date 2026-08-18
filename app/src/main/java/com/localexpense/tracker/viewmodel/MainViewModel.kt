@@ -7,11 +7,16 @@ import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.ExpenseRepository
 import com.localexpense.tracker.data.SmsRule
 import com.localexpense.tracker.data.SourceTotal
+import com.localexpense.tracker.parser.SmsImporter
 import com.localexpense.tracker.parser.SmsParser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 data class RuleTestResult(
@@ -20,6 +25,12 @@ data class RuleTestResult(
     val merchant: String? = null,
     val bankName: String? = null
 )
+
+sealed class ImportState {
+    data object Idle : ImportState()
+    data object Running : ImportState()
+    data class Done(val scanned: Int, val imported: Int) : ImportState()
+}
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -79,6 +90,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteRule(rule: SmsRule) {
         viewModelScope.launch { repository.deleteRule(rule) }
+    }
+
+    private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
+    val importState: StateFlow<ImportState> = _importState
+
+    /**
+     * Scans the phone's existing SMS inbox for messages matching the enabled rules and
+     * backfills them as expenses. Safe to run more than once — messages already imported
+     * (matched by their exact raw text) are skipped.
+     */
+    fun importFromInbox() {
+        viewModelScope.launch {
+            _importState.value = ImportState.Running
+            val currentRules = rules.first().filter { it.isEnabled }
+            val existingRaw = expenses.first().map { it.rawMessage }.toSet()
+
+            val (result, found) = withContext(Dispatchers.IO) {
+                SmsImporter.scanInbox(getApplication(), currentRules, existingRaw)
+            }
+
+            found.forEach { repository.addExpense(it) }
+            _importState.value = ImportState.Done(scanned = result.scanned, imported = result.imported)
+        }
+    }
+
+    fun resetImportState() {
+        _importState.value = ImportState.Idle
     }
 
     /** Used by the "test rule" screen: paste a real message, see what would be extracted. */
