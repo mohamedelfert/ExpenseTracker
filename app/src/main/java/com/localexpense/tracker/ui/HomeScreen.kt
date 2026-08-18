@@ -86,7 +86,7 @@ fun HomeScreen(
         val currentMonthTotal = remember(expenses) {
             val currentCal = Calendar.getInstance()
             expenses.filter { expense ->
-                val expCal = Calendar.getInstance().apply { timeInMillis = expense.timestampMillis }
+                val expCal = Calendar.getInstance().apply { timeInMillis = expense.timestamp }
                 expCal.get(Calendar.MONTH) == currentCal.get(Calendar.MONTH) &&
                         expCal.get(Calendar.YEAR) == currentCal.get(Calendar.YEAR)
             }.sumOf { it.amount }
@@ -122,7 +122,7 @@ fun HomeScreen(
         } else {
             val groupedByMonth = remember(expenses) {
                 expenses.groupBy { expense ->
-                    val cal = Calendar.getInstance().apply { timeInMillis = expense.timestampMillis }
+                    val cal = Calendar.getInstance().apply { timeInMillis = expense.timestamp }
                     SimpleDateFormat("MMMM yyyy", Locale("ar")).format(cal.time)
                 }
             }
@@ -142,7 +142,7 @@ fun HomeScreen(
                         )
                     }
 
-                    val groupedByBank = monthExpenses.groupBy { it.source }
+                    val groupedByBank = monthExpenses.groupBy { it.bankName }
 
                     groupedByBank.forEach { (bankName, bankExpenses) ->
                         item {
@@ -180,7 +180,7 @@ fun HomeScreen(
 
                                     bankExpenses.forEach { expense ->
                                         val timeFormat = SimpleDateFormat("hh:mm a", Locale("ar"))
-                                        val formattedTime = timeFormat.format(Date(expense.timestampMillis))
+                                        val formattedTime = timeFormat.format(Date(expense.timestamp))
 
                                         Row(
                                             modifier = Modifier
