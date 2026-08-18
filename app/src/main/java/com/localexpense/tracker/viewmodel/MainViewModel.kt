@@ -137,12 +137,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val currentRules = rules.first().filter { it.isEnabled }
             val existingRaw = expenses.first().map { it.rawMessage }.toSet()
 
-            val (result, found) = withContext(Dispatchers.IO) {
-                SmsImporter.scanInbox(getApplication(), currentRules, existingRaw)
+            val (scanned, imported, found) = withContext(Dispatchers.IO) {
+                SmsImporter.importAllSmsWithRules(getApplication(), currentRules, existingRaw)
             }
 
-            found.forEach { repository.addExpense(it) }
-            _importState.value = ImportState.Done(scanned = result.scanned, imported = result.imported)
+            found.forEach { expense ->
+                repository.addExpense(expense)
+            }
+            _importState.value = ImportState.Done(scanned = scanned, imported = imported)
         }
     }
 
@@ -151,13 +153,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun testRule(sender: String, body: String, rule: SmsRule): RuleTestResult {
-        val result = SmsParser.parse(sender, body, listOf(rule))
-            ?: return RuleTestResult(matched = false)
-        return RuleTestResult(
-            matched = true,
-            amount = result.amount,
-            merchant = result.merchant,
-            bankName = result.source
-        )
+        val expense = SmsParser.parseSms(sender, body, System.currentTimeMillis())
+        return if (expense != null) {
+            RuleTestResult(
+                matched = true,
+                amount = expense.amount,
+                merchant = expense.merchant,
+                bankName = expense.source
+            )
+        } else {
+            RuleTestResult(matched = false)
+        }
     }
 }
