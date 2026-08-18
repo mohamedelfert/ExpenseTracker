@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -61,7 +62,8 @@ fun HomeScreen(
     onRequestSmsPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onOpenRules: () -> Unit,
-    onOpenAddExpense: () -> Unit
+    onOpenAddExpense: () -> Unit,
+    onOpenDashboard: () -> Unit
 ) {
     val expenses by viewModel.expenses.collectAsState()
     val monthTotal by viewModel.monthTotal.collectAsState()
@@ -73,6 +75,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("مصروفاتي") },
                 actions = {
+                    IconButton(onClick = onOpenDashboard) {
+                        Icon(Icons.Filled.PieChart, contentDescription = "الداشبورد")
+                    }
                     IconButton(onClick = onOpenRules) {
                         Icon(Icons.Filled.Settings, contentDescription = "قواعد الرسائل")
                     }

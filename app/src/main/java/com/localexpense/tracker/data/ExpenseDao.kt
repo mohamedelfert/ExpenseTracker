@@ -37,6 +37,14 @@ interface ExpenseDao {
     """)
     fun observeTotalsBySource(startMillis: Long, endMillis: Long): Flow<List<SourceTotal>>
 
+    @Query("""
+        SELECT category, COALESCE(SUM(amount), 0) as total FROM expenses
+        WHERE timestampMillis BETWEEN :startMillis AND :endMillis
+        GROUP BY category
+        ORDER BY total DESC
+    """)
+    fun observeTotalsByCategory(startMillis: Long, endMillis: Long): Flow<List<CategoryTotal>>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(expense: Expense): Long
 
@@ -49,5 +57,10 @@ interface ExpenseDao {
 
 data class SourceTotal(
     val source: String,
+    val total: Double
+)
+
+data class CategoryTotal(
+    val category: String,
     val total: Double
 )

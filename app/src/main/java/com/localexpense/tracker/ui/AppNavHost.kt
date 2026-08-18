@@ -12,6 +12,7 @@ object Routes {
     const val RULES = "rules"
     const val RULE_EDIT = "rule_edit/{ruleId}"
     const val ADD_EXPENSE = "add_expense"
+    const val DASHBOARD = "dashboard"
     fun ruleEdit(id: Long) = "rule_edit/$id"
 }
 
@@ -32,7 +33,15 @@ fun AppNavHost(
                 onRequestSmsPermission = onRequestSmsPermission,
                 onOpenAppSettings = onOpenAppSettings,
                 onOpenRules = { navController.navigate(Routes.RULES) },
-                onOpenAddExpense = { navController.navigate(Routes.ADD_EXPENSE) }
+                onOpenAddExpense = { navController.navigate(Routes.ADD_EXPENSE) },
+                onOpenDashboard = { navController.navigate(Routes.DASHBOARD) }
+            )
+        }
+
+        composable(Routes.DASHBOARD) {
+            DashboardScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
             )
         }
 

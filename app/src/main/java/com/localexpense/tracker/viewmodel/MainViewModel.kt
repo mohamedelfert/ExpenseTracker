@@ -3,6 +3,8 @@ package com.localexpense.tracker.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.localexpense.tracker.data.Category
+import com.localexpense.tracker.data.CategoryTotal
 import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.ExpenseRepository
 import com.localexpense.tracker.data.SmsRule
@@ -59,6 +61,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val monthTotalsBySource: StateFlow<List<SourceTotal>> = monthRange.let { (s, e) ->
         repository.observeTotalsBySource(s, e)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = monthRange.let { (s, e) ->
+        repository.observeTotalsByCategory(s, e)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val categories: StateFlow<List<Category>> = repository.observeCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun addCategory(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch { repository.addCategory(trimmed) }
+    }
+
+    fun deleteCategory(category: Category) {
+        viewModelScope.launch { repository.deleteCategory(category) }
+    }
 
     fun addManualExpense(amount: Double, merchant: String, category: String) {
         viewModelScope.launch {

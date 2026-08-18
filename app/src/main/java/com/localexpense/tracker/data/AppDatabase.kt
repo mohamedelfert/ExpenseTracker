@@ -4,18 +4,39 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room.migration.Migration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Database(entities = [Expense::class, SmsRule::class], version = 1, exportSchema = false)
+@Database(
+    entities = [Expense::class, SmsRule::class, Category::class],
+    version = 2,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun expenseDao(): ExpenseDao
     abstract fun smsRuleDao(): SmsRuleDao
+    abstract fun categoryDao(): CategoryDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `categories` (
+                        `id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                        `name` TEXT NOT NULL,
+                        `isBuiltIn` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -23,11 +44,14 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "expense_tracker.db"
-                ).build()
+                )
+                    .addMigrations(MIGRATION_1_2)
+                    .build()
                 INSTANCE = instance
 
                 CoroutineScope(Dispatchers.IO).launch {
                     seedDefaultRulesIfEmpty(instance.smsRuleDao())
+                    seedDefaultCategoriesIfEmpty(instance.categoryDao())
                 }
 
                 instance
@@ -79,6 +103,17 @@ abstract class AppDatabase : RoomDatabase() {
                     isBuiltIn = true
                 )
             )
+
+            dao.insertAll(defaults)
+        }
+
+        private suspend fun seedDefaultCategoriesIfEmpty(dao: CategoryDao) {
+            if (dao.count() > 0) return
+
+            val defaults = listOf(
+                "سوبر ماركت", "فواتير", "مواصلات", "أكل وكافيهات",
+                "تسوق", "صحة", "ترفيه", "غير مصنف"
+            ).map { Category(name = it, isBuiltIn = true) }
 
             dao.insertAll(defaults)
         }
