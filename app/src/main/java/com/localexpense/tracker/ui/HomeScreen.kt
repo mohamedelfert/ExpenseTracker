@@ -48,13 +48,13 @@ fun HomeScreen(
 
     var showDisclosureDialog by remember { mutableStateOf(false) }
 
-    // حالات فتح واغلاق السنوات والشهور
+    // حالات فتح وإغلاق السنوات والشهور
     val expandedYears = remember { mutableStateMapOf<String, Boolean>() }
     val expandedMonths = remember { mutableStateMapOf<String, Boolean>() }
 
-    // حالات التحديد والأرشفة للسنوات
-    val selectedYears = remember { mutableStateSetOf<String>() }
-    val archivedYears = remember { mutableStateSetOf<String>() }
+    // استخدام mutableStateListOf لدعم Compose Snapshot State بدون مشاكل
+    val selectedYears = remember { mutableStateListOf<String>() }
+    val archivedYears = remember { mutableStateListOf<String>() }
     val isSelectionMode = selectedYears.isNotEmpty()
 
     val isImporting = importState is ImportState.Running
@@ -85,10 +85,10 @@ fun HomeScreen(
     }
 
     // تجميع البيانات وتصفية السنوات المؤرشفة
-    val groupedData = remember(expenses, archivedYears) {
+    val groupedData = remember(expenses, archivedYears.toList()) {
         expenses.sortedByDescending { it.timestamp }
             .groupBy { yearFormatter.format(Date(it.timestamp)) }
-            .filterKeys { year -> year !in archivedYears } // استبعاد السنوات المؤرشفة
+            .filterKeys { year -> year !in archivedYears }
             .mapValues { (_, yearExpenses) ->
                 yearExpenses.groupBy { monthFormatter.format(Date(it.timestamp)) }
                     .mapValues { (_, monthExpenses) ->
@@ -111,7 +111,6 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             if (isSelectionMode) {
-                // الشريط العلوي أثناء تحديد السنوات
                 TopAppBar(
                     title = { Text("${selectedYears.size} محدد", fontWeight = FontWeight.Bold, color = Color.White) },
                     navigationIcon = {
@@ -121,8 +120,8 @@ fun HomeScreen(
                     },
                     actions = {
                         IconButton(onClick = {
-                            archivedYears.addAll(selectedYears) // نقل للرشيف
-                            selectedYears.clear() // الخروج من نمط التحديد
+                            archivedYears.addAll(selectedYears)
+                            selectedYears.clear()
                         }) {
                             Icon(Icons.Default.Archive, contentDescription = "أرشفة", tint = Color(0xFF80CBC4))
                         }
@@ -130,7 +129,6 @@ fun HomeScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF263238))
                 )
             } else {
-                // الشريط العلوي الافتراضي
                 TopAppBar(
                     title = { Text("مصروفاتي", fontWeight = FontWeight.Bold, color = Color.White) },
                     actions = {
@@ -264,7 +262,7 @@ fun HomeScreen(
                                 },
                                 onLongClick = {
                                     if (!isSelectionMode) {
-                                        selectedYears.add(year)
+                                        if (year !in selectedYears) selectedYears.add(year)
                                     }
                                 },
                                 containerColor = if (isSelected) Color(0xFF1B4D3E) else Color(0xFF0F2027),
