@@ -1,6 +1,8 @@
 package com.localexpense.tracker.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -63,9 +65,14 @@ fun AppNavHost(
         }
 
         composable(Routes.ADD_EXPENSE) {
+            val categories by viewModel.categories.collectAsStateWithLifecycle(initialValue = emptyList())
+
             AddExpenseScreen(
-                categories = viewModel.categories, // or state/list of categories
-                onSaveExpense = { expense -> viewModel.saveExpense(expense) }
+                categories = categories,
+                onSaveExpense = { amount, date, category ->
+                    viewModel.addExpense(amount, date, category)
+                },
+                onBack = { navController.popBackStack() }
             )
         }
     }
