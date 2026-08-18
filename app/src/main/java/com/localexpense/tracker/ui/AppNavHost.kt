@@ -64,8 +64,8 @@ fun AppNavHost(
 
         composable(Routes.ADD_EXPENSE) {
             AddExpenseScreen(
-                viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                categories = viewModel.categories, // or state/list of categories
+                onSaveExpense = { expense -> viewModel.saveExpense(expense) }
             )
         }
     }
