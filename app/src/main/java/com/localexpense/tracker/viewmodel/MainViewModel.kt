@@ -15,16 +15,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
-// حالات عملية الاستيراد (ImportState)
 sealed interface ImportState {
-    object Idle : ImportState
-    object Running : ImportState
+    data object Idle : ImportState
+    data object Running : ImportState
     data class Done(val scanned: Int, val imported: Int) : ImportState
     data class Error(val message: String) : ImportState
 }
 
-// نتيجة اختبار القاعدة (RuleTestResult)
 data class RuleTestResult(
     val matched: Boolean,
     val amount: Double? = null,
@@ -36,28 +35,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val database = AppDatabase.getDatabase(application)
     private val repository = ExpenseRepository(database.expenseDao())
 
-    // 1. المصروفات
     private val _expenses = MutableStateFlow<List<Expense>>(emptyList())
     val expenses: StateFlow<List<Expense>> = _expenses.asStateFlow()
 
-    // 2. الإجماليات
     private val _totalsBySource = MutableStateFlow<List<SourceTotal>>(emptyList())
     val totalsBySource: StateFlow<List<SourceTotal>> = _totalsBySource.asStateFlow()
 
     private val _totalsByCategory = MutableStateFlow<List<CategoryTotal>>(emptyList())
     val totalsByCategory: StateFlow<List<CategoryTotal>> = _totalsByCategory.asStateFlow()
 
-    val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = _totalsByCategory.asStateFlow()
+    private val _monthTotalsByCategory = MutableStateFlow<List<CategoryTotal>>(emptyList())
+    val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = _monthTotalsByCategory.asStateFlow()
 
-    // 3. الفئات
     private val _categories = MutableStateFlow<List<Category>>(emptyList())
     val categories: StateFlow<List<Category>> = _categories.asStateFlow()
 
-    // 4. القواعد
     private val _rules = MutableStateFlow<List<SmsRule>>(emptyList())
     val rules: StateFlow<List<SmsRule>> = _rules.asStateFlow()
 
-    // 5. حالة الاستيراد
     private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importState: StateFlow<ImportState> = _importState.asStateFlow()
 
@@ -65,25 +60,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val importStatusMessage: StateFlow<String?> = _importStatusMessage.asStateFlow()
 
     init {
-        // مراقبة المصروفات والإجماليات
         viewModelScope.launch {
-            repository.observeAll().collect { list ->
-                _expenses.value = list
-            }
+            repository.observeAll().collect { _expenses.value = it }
         }
         viewModelScope.launch {
-            repository.observeTotalsBySource().collect { list ->
-                _totalsBySource.value = list
-            }
+            repository.observeTotalsBySource().collect { _totalsBySource.value = it }
         }
         viewModelScope.launch {
-            repository.observeTotalsByCategory().collect { list ->
-                _totalsByCategory.value = list
-            }
+            repository.observeTotalsByCategory().collect { _totalsByCategory.value = it }
         }
+        
+        loadCurrentMonthCategoryTotals()
     }
 
-    // --- إدارة المصروفات (Expenses) ---
+    private fun loadCurrentMonthCategoryTotals() {
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val startTime = calendar.timeInMillis
+
+        calendar.add(Calendar.MONTH, 1)
+        val endTime = calendar.timeInMillis - 1
+
+        viewModelScope.launch {
+            database.expenseDao().observeTotalsByCategoryBetween(startTime, endTime)
+                .collect { _monthTotalsByCategory.value = it }
+        }
+    }
 
     fun addExpense(
         amount: Double,
@@ -123,18 +130,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateExpense(expense: Expense) {
-        viewModelScope.launch {
-            repository.update(expense)
-        }
+        viewModelScope.launch { repository.update(expense) }
     }
 
     fun deleteExpense(expense: Expense) {
-        viewModelScope.launch {
-            repository.delete(expense)
-        }
+        viewModelScope.launch { repository.delete(expense) }
     }
-
-    // --- استيراد الرسائل (SMS Import) ---
 
     fun importFromInbox() {
         viewModelScope.launch {
@@ -149,11 +150,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun scanInbox() {
-        importFromInbox()
-    }
-
-    // --- إدارة القواعد (Rules) ---
+    fun scanInbox() = importFromInbox()
 
     fun saveRule(rule: SmsRule) {
         viewModelScope.launch {
@@ -175,21 +172,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun testRule(sender: String, body: String, rule: SmsRule): RuleTestResult {
-        val senderMatched = rule.senderPattern.isBlank() || 
-            Regex(rule.senderPattern, RegexOption.IGNORE_CASE).containsMatchIn(sender)
-        val keywordMatched = rule.debitKeywordPattern.isBlank() || 
-            Regex(rule.debitKeywordPattern, RegexOption.IGNORE_CASE).containsMatchIn(body)
+        val senderRegex = rule.senderPattern.takeIf { it.isNotBlank() }?.let { Regex(it, RegexOption.IGNORE_CASE) }
+        val keywordRegex = rule.debitKeywordPattern.takeIf { it.isNotBlank() }?.let { Regex(it, RegexOption.IGNORE_CASE) }
+
+        val senderMatched = senderRegex?.containsMatchIn(sender) ?: true
+        val keywordMatched = keywordRegex?.containsMatchIn(body) ?: true
 
         if (!senderMatched || !keywordMatched) {
             return RuleTestResult(matched = false)
         }
 
-        val amountMatch = Regex(rule.amountPattern, RegexOption.IGNORE_CASE).find(body)
-        val amount = amountMatch?.groupValues?.getOrNull(1)?.replace(",", "")?.toDoubleOrNull()
+        val amount = Regex(rule.amountPattern, RegexOption.IGNORE_CASE)
+            .find(body)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.replace(",", "")
+            ?.toDoubleOrNull()
 
-        val merchantMatch = if (rule.merchantPattern.isNotBlank()) {
-            Regex(rule.merchantPattern, RegexOption.IGNORE_CASE).find(body)?.groupValues?.getOrNull(1)
-        } else null
+        val merchantMatch = rule.merchantPattern.takeIf { it.isNotBlank() }?.let {
+            Regex(it, RegexOption.IGNORE_CASE).find(body)?.groupValues?.getOrNull(1)
+        }
 
         return RuleTestResult(
             matched = amount != null,
@@ -197,8 +199,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             merchant = merchantMatch
         )
     }
-
-    // --- إدارة الفئات (Categories) ---
 
     fun addCategory(name: String) {
         viewModelScope.launch {
