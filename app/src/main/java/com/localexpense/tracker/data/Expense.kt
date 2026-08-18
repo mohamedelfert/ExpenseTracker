@@ -5,13 +5,12 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "expenses")
 data class Expense(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
     val amount: Double,
-    val merchant: String,
-    val source: String,          // e.g. "البنك الأهلي", "InstaPay", "يدوي"
-    val timestampMillis: Long,   // date + time extracted from the message
-    val rawMessage: String,      // original SMS text, kept for auditing
-    val category: String = "غير مصنف",
-    val isConfirmed: Boolean = true, // false if parsing confidence was low
-    val createdAt: Long = System.currentTimeMillis()
+    val merchant: String,      // الجهة أو التاجر أو نوع العملية
+    val bankName: String,      // اسم البنك (مثل: CIB, BanK-AlAhly, Banque Misr, FAISAL BANK)
+    val timestamp: Long,       // التاريخ والوقت بالمللي ثانية
+    val rawBody: String,       // النص الكامل للرسالة
+    val categoryName: String = "عام"
 )

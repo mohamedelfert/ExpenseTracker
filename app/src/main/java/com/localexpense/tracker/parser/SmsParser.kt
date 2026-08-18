@@ -1,83 +1,75 @@
 package com.localexpense.tracker.parser
 
-import com.localexpense.tracker.data.SmsRule
-
-data class ParsedExpense(
-    val amount: Double,
-    val merchant: String,
-    val source: String,
-    /** true only when both the amount and a merchant/place were found */
-    val isConfirmed: Boolean
-)
+import com.localexpense.tracker.data.Expense
+import java.util.regex.Pattern
 
 object SmsParser {
 
-    /**
-     * Tries every enabled rule against [sender] and [body].
-     * Returns the first rule whose sender pattern matches AND whose debit
-     * keyword is present in the body, with whatever amount/merchant it can
-     * extract. Returns null if no rule's sender pattern matches at all
-     * (message is ignored, e.g. OTP codes, promos, incoming-transfer notices).
-     */
-    fun parse(sender: String, body: String, rules: List<SmsRule>): ParsedExpense? {
-        for (rule in rules) {
-            if (!safeMatches(rule.senderPattern, sender) && !safeContains(rule.senderPattern, body)) {
-                continue
-            }
-            if (!safeContains(rule.debitKeywordPattern, body)) {
-                // Sender matched but this looks like a deposit/incoming/OTP message, not an expense.
-                continue
-            }
+    fun parseSms(sender: String, body: String, timestamp: Long): Expense? {
+        val bankName = identifyBank(sender, body) ?: return null
+        val amount = extractAmount(body) ?: return null
+        val merchant = extractMerchant(body)
 
-            val amount = extractAmount(rule.amountPattern, body) ?: continue
-            val merchant = extractMerchant(rule.merchantPattern, body)
+        return Expense(
+            amount = amount,
+            merchant = merchant,
+            bankName = bankName,
+            timestamp = timestamp,
+            rawBody = body
+        )
+    }
 
-            return ParsedExpense(
-                amount = amount,
-                merchant = merchant ?: "غير محدد",
-                source = rule.bankName,
-                isConfirmed = merchant != null
-            )
+    private fun identifyBank(sender: String, body: String): String? {
+        val s = sender.uppercase()
+        val b = body.uppercase()
+
+        return when {
+            s.contains("CIB") || b.contains("CIB") -> "CIB"
+            s.contains("ALAHLY") || s.contains("NBE") || b.contains("البنك الأهلي") -> "BanK-AlAhly"
+            s.contains("MISR") || b.contains("بنك مصر") -> "Banque Misr"
+            s.contains("FAISAL") || b.contains("فيصل") -> "FAISAL BANK"
+            s.contains("VF-CASH") || b.contains("فودافون كاش") -> "Vodafone Cash"
+            isTransactionMessage(body) -> if (sender.isNotBlank()) sender else "بنك آخر"
+            else -> null
+        }
+    }
+
+    private fun isTransactionMessage(body: String): Boolean {
+        val keywords = listOf("خصم", "سحب", "شراء", "تم خصم", "تحويل", "EGP", "مبلغ", "بطاقة", "شراء بـ", "عملية")
+        return keywords.any { body.contains(it, ignoreCase = true) }
+    }
+
+    private fun extractAmount(body: String): Double? {
+        val patterns = listOf(
+            Pattern.compile("(?:EGP|ج\\.م|جم|LE)\\s*([\\d,]+(?:\\.\\d+)?)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("([\\d,]+(?:\\.\\d+)?)\\s*(?:EGP|ج\\.م|جم|LE)", Pattern.CASE_INSENSITIVE),
+            Pattern.compile("(?:مبلغ|بـ|بيمة)\\s*([\\d,]+(?:\\.\\d+)?)", Pattern.CASE_INSENSITIVE)
+        )
+
+        for (pattern in patterns) {
+            val matcher = pattern.matcher(body)
+            if (matcher.find()) {
+                val cleanNum = matcher.group(1)?.replace(",", "") ?: continue
+                return cleanNum.toDoubleOrNull()
+            }
         }
         return null
     }
 
-    private fun extractAmount(pattern: String, body: String): Double? {
-        if (pattern.isBlank()) return null
-        return try {
-            val match = Regex(pattern).find(body) ?: return null
-            val raw = match.groupValues.getOrNull(1)?.replace(",", "") ?: return null
-            raw.toDoubleOrNull()
-        } catch (e: Exception) {
-            null
+    private fun extractMerchant(body: String): String {
+        val pattern = Pattern.compile("(?:لدى|عند|من|at|to)\\s+([A-Za-z0-9\\s_\\-أ-ي]+?)(?=\\s*(?:بـ|بطاقة|في|بتاريخ|EGP|ج\\.م|\\d|\\.|$))", Pattern.CASE_INSENSITIVE)
+        val matcher = pattern.matcher(body)
+        if (matcher.find()) {
+            val found = matcher.group(1)?.trim()
+            if (!found.isNullOrBlank() && found.length > 2) return found
         }
-    }
 
-    private fun extractMerchant(pattern: String, body: String): String? {
-        if (pattern.isBlank()) return null
-        return try {
-            val match = Regex(pattern).find(body) ?: return null
-            match.groupValues.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun safeMatches(pattern: String, value: String): Boolean {
-        if (pattern.isBlank()) return false
-        return try {
-            Regex(pattern).containsMatchIn(value)
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    private fun safeContains(pattern: String, value: String): Boolean {
-        if (pattern.isBlank()) return false
-        return try {
-            Regex(pattern).containsMatchIn(value)
-        } catch (e: Exception) {
-            false
+        return when {
+            body.contains("سحب آلي", ignoreCase = true) || body.contains("ATM", ignoreCase = true) -> "سحب آلي (ATM)"
+            body.contains("شراء", ignoreCase = true) -> "عملية شراء"
+            body.contains("تحويل", ignoreCase = true) -> "عملية تحويل"
+            body.contains("خصم", ignoreCase = true) -> "عملية خصم"
+            else -> "عملية بنكية"
         }
     }
 }

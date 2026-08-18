@@ -2,65 +2,49 @@ package com.localexpense.tracker.parser
 
 import android.content.Context
 import android.provider.Telephony
-import com.localexpense.tracker.data.Expense
-import com.localexpense.tracker.data.SmsRule
-
-data class ImportResult(
-    val scanned: Int,
-    val imported: Int
-)
+import com.localexpense.tracker.data.AppDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object SmsImporter {
 
-    /**
-     * Reads the device's SMS inbox (requires READ_SMS, already granted at this point),
-     * runs every enabled rule against each message, and returns the expenses that would
-     * be created — skipping any message whose exact text is already in [existingRawMessages]
-     * so re-running the import never creates duplicates.
-     */
-    fun scanInbox(
-        context: Context,
-        rules: List<SmsRule>,
-        existingRawMessages: Set<String>
-    ): Pair<ImportResult, List<Expense>> {
-        val found = mutableListOf<Expense>()
-        var scanned = 0
-
-        val cursor = context.contentResolver.query(
-            Telephony.Sms.Inbox.CONTENT_URI,
+    suspend fun importAllSms(context: Context): Pair<Int, Int> = withContext(Dispatchers.IO) {
+        val contentResolver = context.contentResolver
+        val cursor = contentResolver.query(
+            Telephony.Sms.CONTENT_URI,
             arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
-            null, null,
+            null,
+            null,
             "${Telephony.Sms.DATE} DESC"
         )
 
-        cursor?.use {
-            val addressIdx = it.getColumnIndex(Telephony.Sms.ADDRESS)
-            val bodyIdx = it.getColumnIndex(Telephony.Sms.BODY)
-            val dateIdx = it.getColumnIndex(Telephony.Sms.DATE)
+        var totalExamined = 0
+        var newAdded = 0
 
-            while (it.moveToNext()) {
-                scanned++
-                val sender = it.getString(addressIdx) ?: continue
-                val body = it.getString(bodyIdx) ?: continue
-                val date = it.getLong(dateIdx)
+        val db = AppDatabase.getDatabase(context)
+        val dao = db.expenseDao()
 
-                if (body in existingRawMessages) continue
+        cursor?.use { c ->
+            val addressIndex = c.getColumnIndex(Telephony.Sms.ADDRESS)
+            val bodyIndex = c.getColumnIndex(Telephony.Sms.BODY)
+            val dateIndex = c.getColumnIndex(Telephony.Sms.DATE)
 
-                val parsed = SmsParser.parse(sender, body, rules) ?: continue
+            while (c.moveToNext()) {
+                totalExamined++
+                val sender = c.getString(addressIndex) ?: ""
+                val body = c.getString(bodyIndex) ?: ""
+                val timestamp = c.getLong(dateIndex)
 
-                found.add(
-                    Expense(
-                        amount = parsed.amount,
-                        merchant = parsed.merchant,
-                        source = parsed.source,
-                        timestampMillis = date,
-                        rawMessage = body,
-                        isConfirmed = parsed.isConfirmed
-                    )
-                )
+                val expense = SmsParser.parseSms(sender, body, timestamp)
+                if (expense != null) {
+                    if (dao.exists(body, timestamp) == 0) {
+                        dao.insertExpense(expense)
+                        newAdded++
+                    }
+                }
             }
         }
 
-        return ImportResult(scanned = scanned, imported = found.size) to found
+        Pair(totalExamined, newAdded)
     }
 }
