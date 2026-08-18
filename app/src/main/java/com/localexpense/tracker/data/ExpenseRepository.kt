@@ -4,7 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.flow.Flow
 
 class ExpenseRepository(context: Context) {
-    private val db = AppDatabase.getInstance(context)
+    private val db = AppDatabase.getDatabase(context)
     private val expenseDao = db.expenseDao()
     private val ruleDao = db.smsRuleDao()
     private val categoryDao = db.categoryDao()
