@@ -1,12 +1,15 @@
 package com.localexpense.tracker.ui
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -45,8 +48,14 @@ fun HomeScreen(
 
     var showDisclosureDialog by remember { mutableStateOf(false) }
 
+    // حالات فتح واغلاق السنوات والشهور
     val expandedYears = remember { mutableStateMapOf<String, Boolean>() }
     val expandedMonths = remember { mutableStateMapOf<String, Boolean>() }
+
+    // حالات التحديد والأرشفة للسنوات
+    val selectedYears = remember { mutableStateSetOf<String>() }
+    val archivedYears = remember { mutableStateSetOf<String>() }
+    val isSelectionMode = selectedYears.isNotEmpty()
 
     val isImporting = importState is ImportState.Running
 
@@ -75,9 +84,11 @@ fun HomeScreen(
         }.sumOf { it.amount }
     }
 
-    val groupedData = remember(expenses) {
+    // تجميع البيانات وتصفية السنوات المؤرشفة
+    val groupedData = remember(expenses, archivedYears) {
         expenses.sortedByDescending { it.timestamp }
             .groupBy { yearFormatter.format(Date(it.timestamp)) }
+            .filterKeys { year -> year !in archivedYears } // استبعاد السنوات المؤرشفة
             .mapValues { (_, yearExpenses) ->
                 yearExpenses.groupBy { monthFormatter.format(Date(it.timestamp)) }
                     .mapValues { (_, monthExpenses) ->
@@ -86,7 +97,6 @@ fun HomeScreen(
             }
     }
 
-    // عرض شاشة الإفصاح البارز المطلوب لجوجل بلاي عند الحاجة
     if (showDisclosureDialog) {
         SmsProminentDisclosureDialog(
             onAccept = {
@@ -100,24 +110,46 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("مصروفاتي", fontWeight = FontWeight.Bold, color = Color.White) },
-                actions = {
-                    IconButton(onClick = onOpenPrivacyPolicy) {
-                        Icon(Icons.Default.PrivacyTip, contentDescription = "سياسة الخصوصية", tint = Color.White)
-                    }
-                    IconButton(onClick = onOpenAddExpense) {
-                        Icon(Icons.Default.Add, contentDescription = "إضافة مصروف", tint = Color.White)
-                    }
-                    IconButton(onClick = onOpenDashboard) {
-                        Icon(Icons.Default.BarChart, contentDescription = "الإحصائيات", tint = Color.White)
-                    }
-                    IconButton(onClick = onOpenRules) {
-                        Icon(Icons.Default.Settings, contentDescription = "الإعدادات والقواعد", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1E1E1E))
-            )
+            if (isSelectionMode) {
+                // الشريط العلوي أثناء تحديد السنوات
+                TopAppBar(
+                    title = { Text("${selectedYears.size} محدد", fontWeight = FontWeight.Bold, color = Color.White) },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedYears.clear() }) {
+                            Icon(Icons.Default.Close, contentDescription = "إلغاء التحديد", tint = Color.White)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            archivedYears.addAll(selectedYears) // نقل للرشيف
+                            selectedYears.clear() // الخروج من نمط التحديد
+                        }) {
+                            Icon(Icons.Default.Archive, contentDescription = "أرشفة", tint = Color(0xFF80CBC4))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF263238))
+                )
+            } else {
+                // الشريط العلوي الافتراضي
+                TopAppBar(
+                    title = { Text("مصروفاتي", fontWeight = FontWeight.Bold, color = Color.White) },
+                    actions = {
+                        IconButton(onClick = onOpenPrivacyPolicy) {
+                            Icon(Icons.Default.PrivacyTip, contentDescription = "سياسة الخصوصية", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenAddExpense) {
+                            Icon(Icons.Default.Add, contentDescription = "إضافة مصروف", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenDashboard) {
+                            Icon(Icons.Default.BarChart, contentDescription = "الإحصائيات", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenRules) {
+                            Icon(Icons.Default.Settings, contentDescription = "الإعدادات والقواعد", tint = Color.White)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1E1E1E))
+                )
+            }
         },
         containerColor = Color(0xFF121212)
     ) { paddingValues ->
@@ -136,11 +168,7 @@ fun HomeScreen(
 
             Button(
                 onClick = {
-                    if (smsPermissionGranted) {
-                        viewModel.importFromInbox()
-                    } else {
-                        showDisclosureDialog = true
-                    }
+                    if (smsPermissionGranted) viewModel.importFromInbox() else showDisclosureDialog = true
                 },
                 enabled = !isImporting,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B)),
@@ -201,7 +229,7 @@ fun HomeScreen(
                 }
             }
 
-            if (expenses.isEmpty()) {
+            if (groupedData.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -214,23 +242,38 @@ fun HomeScreen(
                 ) {
                     groupedData.forEach { (year, monthsMap) ->
                         val isYearExpanded = expandedYears[year] ?: true
+                        val isSelected = year in selectedYears
 
                         item(key = "year-$year") {
                             val yearTotal = remember(monthsMap) {
                                 monthsMap.values.flatMap { it.values.flatten() }.sumOf { it.amount }
                             }
+
                             HeaderCard(
                                 title = "سنة $year",
                                 amount = yearTotal,
                                 isExpanded = isYearExpanded,
-                                onClick = { expandedYears[year] = !isYearExpanded },
-                                containerColor = Color(0xFF0F2027),
+                                isSelectionMode = isSelectionMode,
+                                isSelected = isSelected,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        if (isSelected) selectedYears.remove(year) else selectedYears.add(year)
+                                    } else {
+                                        expandedYears[year] = !isYearExpanded
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) {
+                                        selectedYears.add(year)
+                                    }
+                                },
+                                containerColor = if (isSelected) Color(0xFF1B4D3E) else Color(0xFF0F2027),
                                 titleColor = Color.White,
                                 amountColor = Color(0xFF4DB6AC)
                             )
                         }
 
-                        if (isYearExpanded) {
+                        if (isYearExpanded && !isSelectionMode) {
                             monthsMap.forEach { (monthName, banksMap) ->
                                 val monthKey = "$year-$monthName"
                                 val isMonthExpanded = expandedMonths[monthKey] ?: true
@@ -243,7 +286,10 @@ fun HomeScreen(
                                         title = monthName,
                                         amount = monthTotal,
                                         isExpanded = isMonthExpanded,
+                                        isSelectionMode = false,
+                                        isSelected = false,
                                         onClick = { expandedMonths[monthKey] = !isMonthExpanded },
+                                        onLongClick = {},
                                         containerColor = Color(0xFF1F2937),
                                         titleColor = Color.White,
                                         amountColor = Color(0xFF80CBC4),
@@ -324,12 +370,16 @@ private fun SmsPermissionCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HeaderCard(
     title: String,
     amount: Double,
     isExpanded: Boolean,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     containerColor: Color,
     titleColor: Color,
     amountColor: Color,
@@ -339,7 +389,10 @@ private fun HeaderCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = paddingStart)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         shape = RoundedCornerShape(10.dp)
     ) {
@@ -351,12 +404,25 @@ private fun HeaderCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = amountColor
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onClick() },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Color(0xFF00897B),
+                            uncheckedColor = Color.Gray
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = amountColor
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium.copy(
