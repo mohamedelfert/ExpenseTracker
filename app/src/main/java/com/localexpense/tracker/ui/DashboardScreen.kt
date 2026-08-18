@@ -178,7 +178,7 @@ private fun CategoryTotalRow(item: CategoryTotal, color: Color, percentage: Doub
                     .background(color)
             )
             Text(
-                item.category,
+                item.categoryName,
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(start = 10.dp)
             )
