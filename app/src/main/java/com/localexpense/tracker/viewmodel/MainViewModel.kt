@@ -95,6 +95,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Root Fix: Method called by AppNavHost
+    fun saveExpense(amount: Double, date: Long, category: String) {
+        viewModelScope.launch {
+            repository.addExpense(
+                Expense(
+                    amount = amount,
+                    merchant = "يدوي",
+                    source = "يدوي",
+                    timestampMillis = if (date > 0) date else System.currentTimeMillis(),
+                    rawMessage = "",
+                    category = category,
+                    isConfirmed = true
+                )
+            )
+        }
+    }
+
     fun updateExpense(expense: Expense) {
         viewModelScope.launch { repository.updateExpense(expense) }
     }
@@ -114,11 +131,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importState: StateFlow<ImportState> = _importState
 
-    /**
-     * Scans the phone's existing SMS inbox for messages matching the enabled rules and
-     * backfills them as expenses. Safe to run more than once — messages already imported
-     * (matched by their exact raw text) are skipped.
-     */
     fun importFromInbox() {
         viewModelScope.launch {
             _importState.value = ImportState.Running
@@ -138,7 +150,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _importState.value = ImportState.Idle
     }
 
-    /** Used by the "test rule" screen: paste a real message, see what would be extracted. */
     fun testRule(sender: String, body: String, rule: SmsRule): RuleTestResult {
         val result = SmsParser.parse(sender, body, listOf(rule))
             ?: return RuleTestResult(matched = false)
