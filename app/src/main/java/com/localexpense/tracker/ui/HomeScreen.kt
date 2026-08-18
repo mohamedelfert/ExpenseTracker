@@ -46,7 +46,6 @@ fun HomeScreen(
 
     val isImporting = importState is ImportState.Running
 
-    // Caching formatters to avoid memory allocation inside loops
     val yearFormatter = remember { SimpleDateFormat("yyyy", Locale("ar")) }
     val monthFormatter = remember { SimpleDateFormat("MMMM", Locale("ar")) }
     val timeFormatter = remember { SimpleDateFormat("dd MMMM - hh:mm a", Locale("ar")) }
@@ -192,11 +191,11 @@ fun HomeScreen(
                 ) {
                     groupedData.forEach { (year, monthsMap) ->
                         val isYearExpanded = expandedYears[year] ?: true
-                        val yearTotal = remember(monthsMap) {
-                            monthsMap.values.flatMap { it.values.flatten() }.sumOf { it.amount }
-                        }
 
                         item(key = "year-$year") {
+                            val yearTotal = remember(monthsMap) {
+                                monthsMap.values.flatMap { it.values.flatten() }.sumOf { it.amount }
+                            }
                             HeaderCard(
                                 title = "سنة $year",
                                 amount = yearTotal,
@@ -212,11 +211,11 @@ fun HomeScreen(
                             monthsMap.forEach { (monthName, banksMap) ->
                                 val monthKey = "$year-$monthName"
                                 val isMonthExpanded = expandedMonths[monthKey] ?: true
-                                val monthTotal = remember(banksMap) {
-                                    banksMap.values.flatten().sumOf { it.amount }
-                                }
 
                                 item(key = "month-$monthKey") {
+                                    val monthTotal = remember(banksMap) {
+                                        banksMap.values.flatten().sumOf { it.amount }
+                                    }
                                     HeaderCard(
                                         title = monthName,
                                         amount = monthTotal,
@@ -394,9 +393,7 @@ private fun BankExpensesCard(
             )
 
             expenses.forEach { expense ->
-                val formattedTime = remember(expense.timestamp) {
-                    timeFormatter.format(Date(expense.timestamp))
-                }
+                val formattedTime = timeFormatter.format(Date(expense.timestamp))
 
                 Row(
                     modifier = Modifier
