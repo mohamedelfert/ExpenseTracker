@@ -59,11 +59,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val monthTotalsBySource: StateFlow<List<SourceTotal>> = monthRange.let { (s, e) ->
-        repository.observeTotalsBySource(s, e)
+        repository.observeTotalsBySource()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = monthRange.let { (s, e) ->
-        repository.observeTotalsByCategory(s, e)
+        repository.observeTotalsByCategory()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val categories: StateFlow<List<Category>> = repository.observeCategories()
@@ -85,11 +85,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Expense(
                     amount = amount,
                     merchant = merchant,
-                    source = "يدوي",
-                    timestampMillis = System.currentTimeMillis(),
-                    rawMessage = "",
-                    category = category,
-                    isConfirmed = true
+                    bankName = "يدوي",
+                    timestamp = System.currentTimeMillis(),
+                    rawBody = "",
+                    categoryName = category
                 )
             )
         }
@@ -102,11 +101,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Expense(
                     amount = amount,
                     merchant = "يدوي",
-                    source = "يدوي",
-                    timestampMillis = if (date > 0) date else System.currentTimeMillis(),
-                    rawMessage = "",
-                    category = category,
-                    isConfirmed = true
+                    bankName = "يدوي",
+                    timestamp = if (date > 0) date else System.currentTimeMillis(),
+                    rawBody = "",
+                    categoryName = category
                 )
             )
         }
@@ -135,7 +133,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _importState.value = ImportState.Running
             val currentRules = rules.first().filter { it.isEnabled }
-            val existingRaw = expenses.first().map { it.rawMessage }.toSet()
+            val existingRaw = expenses.first().map { it.rawBody }.toSet()
 
             val (scanned, imported, found) = withContext(Dispatchers.IO) {
                 SmsImporter.importAllSmsWithRules(getApplication(), currentRules, existingRaw)
@@ -159,7 +157,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 matched = true,
                 amount = expense.amount,
                 merchant = expense.merchant,
-                bankName = expense.source
+                bankName = expense.bankName
             )
         } else {
             RuleTestResult(matched = false)

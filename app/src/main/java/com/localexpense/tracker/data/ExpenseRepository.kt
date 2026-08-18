@@ -12,13 +12,13 @@ class ExpenseRepository(context: Context) {
     fun observeExpenses(): Flow<List<Expense>> = expenseDao.observeAll()
 
     fun observeTotalBetween(start: Long, end: Long): Flow<Double> =
-        expenseDao.observeTotalBetween(start, end)
+        expenseDao.observeTotalBetween(start, end).map { it ?: 0.0 }
 
-    fun observeTotalsBySource(start: Long, end: Long): Flow<List<SourceTotal>> =
-        expenseDao.observeTotalsBySource(start, end)
+    fun observeTotalsBySource(): Flow<List<SourceTotal>> =
+        expenseDao.observeTotalsBySource()
 
-    fun observeTotalsByCategory(start: Long, end: Long): Flow<List<CategoryTotal>> =
-        expenseDao.observeTotalsByCategory(start, end)
+    fun observeTotalsByCategory(): Flow<List<CategoryTotal>> =
+        expenseDao.observeTotalsByCategory()
 
     suspend fun addExpense(expense: Expense) = expenseDao.insert(expense)
     suspend fun updateExpense(expense: Expense) = expenseDao.update(expense)
