@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -36,10 +37,13 @@ fun HomeScreen(
     onOpenAppSettings: () -> Unit,
     onOpenRules: () -> Unit,
     onOpenAddExpense: () -> Unit,
-    onOpenDashboard: () -> Unit
+    onOpenDashboard: () -> Unit,
+    onOpenPrivacyPolicy: () -> Unit
 ) {
     val expenses by viewModel.expenses.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
+
+    var showDisclosureDialog by remember { mutableStateOf(false) }
 
     val expandedYears = remember { mutableStateMapOf<String, Boolean>() }
     val expandedMonths = remember { mutableStateMapOf<String, Boolean>() }
@@ -82,11 +86,26 @@ fun HomeScreen(
             }
     }
 
+    // عرض شاشة الإفصاح البارز المطلوب لجوجل بلاي عند الحاجة
+    if (showDisclosureDialog) {
+        SmsProminentDisclosureDialog(
+            onAccept = {
+                showDisclosureDialog = false
+                onRequestSmsPermission()
+            },
+            onDismiss = { showDisclosureDialog = false },
+            onOpenPrivacyPolicy = onOpenPrivacyPolicy
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("مصروفاتي", fontWeight = FontWeight.Bold, color = Color.White) },
                 actions = {
+                    IconButton(onClick = onOpenPrivacyPolicy) {
+                        Icon(Icons.Default.PrivacyTip, contentDescription = "سياسة الخصوصية", tint = Color.White)
+                    }
                     IconButton(onClick = onOpenAddExpense) {
                         Icon(Icons.Default.Add, contentDescription = "إضافة مصروف", tint = Color.White)
                     }
@@ -110,14 +129,18 @@ fun HomeScreen(
         ) {
             if (!smsPermissionGranted) {
                 SmsPermissionCard(
-                    onRequestSmsPermission = onRequestSmsPermission,
+                    onRequestSmsPermission = { showDisclosureDialog = true },
                     onOpenAppSettings = onOpenAppSettings
                 )
             }
 
             Button(
                 onClick = {
-                    if (smsPermissionGranted) viewModel.importFromInbox() else onRequestSmsPermission()
+                    if (smsPermissionGranted) {
+                        viewModel.importFromInbox()
+                    } else {
+                        showDisclosureDialog = true
+                    }
                 },
                 enabled = !isImporting,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B)),

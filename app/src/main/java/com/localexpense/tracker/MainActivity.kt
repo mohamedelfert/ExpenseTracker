@@ -9,10 +9,9 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
@@ -21,9 +20,9 @@ import com.localexpense.tracker.ui.theme.ExpenseTrackerTheme
 import com.localexpense.tracker.viewmodel.MainViewModel
 
 /**
- * Both permissions are needed:
- *  - RECEIVE_SMS: catch new messages as they arrive (live tracking)
- *  - READ_SMS: let the user import older messages already sitting in the inbox
+ * الأذونات الحساسة المطلوبة:
+ * - RECEIVE_SMS: التقاط الرسائل البنكية فور وصولها لتحديث البيانات حياً.
+ * - READ_SMS: قراءة الرسائل القديمة من صندوق الوارد لاستيراد المصروفات.
  */
 private val SMS_PERMISSIONS = arrayOf(
     Manifest.permission.RECEIVE_SMS,
@@ -54,6 +53,14 @@ class MainActivity : ComponentActivity() {
         startActivity(intent)
     }
 
+    // دالة فتح رابط سياسة الخصوصية في المتصفح الخارجي
+    private fun openPrivacyPolicy() {
+        // قم بستبدال هذا الرابط برابط سياسة الخصوصية الفعلية الخاص بك (مثل: Notion, GitHub Pages, Google Docs)
+        val privacyPolicyUrl = "https://your-privacy-policy-url.com" 
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl))
+        startActivity(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -65,8 +72,7 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val granted by smsPermissionGranted
 
-                // Re-check every time the user comes back to the app — covers the case
-                // where they granted the permission from the system Settings screen.
+                // إعادت فحص حالة الإذن عند العودة للتطبيق من إعدادات النظام
                 LifecycleResumeEffect(Unit) {
                     refreshPermissionState()
                     onPauseOrDispose { }
@@ -79,7 +85,8 @@ class MainActivity : ComponentActivity() {
                     onRequestSmsPermission = {
                         permissionLauncher.launch(SMS_PERMISSIONS)
                     },
-                    onOpenAppSettings = { openAppSettings() }
+                    onOpenAppSettings = { openAppSettings() },
+                    onOpenPrivacyPolicy = { openPrivacyPolicy() }
                 )
             }
         }

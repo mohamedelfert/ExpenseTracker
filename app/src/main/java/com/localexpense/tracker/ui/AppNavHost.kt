@@ -24,7 +24,8 @@ fun AppNavHost(
     viewModel: MainViewModel,
     smsPermissionGranted: Boolean,
     onRequestSmsPermission: () -> Unit,
-    onOpenAppSettings: () -> Unit
+    onOpenAppSettings: () -> Unit,
+    onOpenPrivacyPolicy: () -> Unit
 ) {
     NavHost(navController = navController, startDestination = Routes.HOME) {
 
@@ -36,7 +37,8 @@ fun AppNavHost(
                 onOpenAppSettings = onOpenAppSettings,
                 onOpenRules = { navController.navigate(Routes.RULES) },
                 onOpenAddExpense = { navController.navigate(Routes.ADD_EXPENSE) },
-                onOpenDashboard = { navController.navigate(Routes.DASHBOARD) }
+                onOpenDashboard = { navController.navigate(Routes.DASHBOARD) },
+                onOpenPrivacyPolicy = onOpenPrivacyPolicy
             )
         }
 
