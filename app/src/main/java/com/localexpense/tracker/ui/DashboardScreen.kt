@@ -1,6 +1,7 @@
 package com.localexpense.tracker.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -233,8 +234,6 @@ private fun DonutChart(totals: List<CategoryTotal>, grandTotal: Double, modifier
         }
     }
 }
-
-import androidx.compose.foundation.clickable
 
 @Composable
 private fun CategoryTotalRow(item: CategoryTotal, color: Color, percentage: Double, budgetLimit: Double?, onSetBudget: () -> Unit) {
