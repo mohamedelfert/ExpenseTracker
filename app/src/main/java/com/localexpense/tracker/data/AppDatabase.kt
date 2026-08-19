@@ -9,7 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Database(
-    entities = [Expense::class, Category::class],
+    entities = [Expense::class, Category::class, SmsRule::class],
     version = 3,
     exportSchema = false
 )
@@ -17,6 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun expenseDao(): ExpenseDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun smsRuleDao(): SmsRuleDao
 
     companion object {
         @Volatile

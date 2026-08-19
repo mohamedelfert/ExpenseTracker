@@ -5,12 +5,14 @@ import kotlinx.coroutines.flow.Flow
 
 class ExpenseRepository(
     private val expenseDao: ExpenseDao,
-    private val categoryDao: CategoryDao
+    private val categoryDao: CategoryDao,
+    private val smsRuleDao: SmsRuleDao
 ) {
 
     constructor(context: Context) : this(
         AppDatabase.getDatabase(context).expenseDao(),
-        AppDatabase.getDatabase(context).categoryDao()
+        AppDatabase.getDatabase(context).categoryDao(),
+        AppDatabase.getDatabase(context).smsRuleDao()
     )
 
     fun observeAll(): Flow<List<Expense>> = expenseDao.observeAll()
@@ -48,4 +50,8 @@ class ExpenseRepository(
     fun observeCategories(): Flow<List<Category>> = categoryDao.observeAll()
     suspend fun addCategory(name: String): Long = categoryDao.insert(Category(name = name, isBuiltIn = false))
     suspend fun deleteCategory(category: Category) = categoryDao.delete(category)
+
+    fun observeRules(): Flow<List<SmsRule>> = smsRuleDao.observeAll()
+    suspend fun insertRule(rule: SmsRule): Long = smsRuleDao.insert(rule)
+    suspend fun deleteRule(rule: SmsRule) = smsRuleDao.delete(rule)
 }
