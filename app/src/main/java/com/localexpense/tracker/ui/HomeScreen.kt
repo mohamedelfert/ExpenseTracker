@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -38,10 +37,9 @@ fun HomeScreen(
     smsPermissionGranted: Boolean,
     onRequestSmsPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
-    onOpenRules: () -> Unit,
+    onOpenTestSms: () -> Unit,
     onOpenAddExpense: () -> Unit,
-    onOpenDashboard: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit
+    onOpenDashboard: () -> Unit
 ) {
     val expenses by viewModel.expenses.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
@@ -103,8 +101,7 @@ fun HomeScreen(
                 showDisclosureDialog = false
                 onRequestSmsPermission()
             },
-            onDismiss = { showDisclosureDialog = false },
-            onOpenPrivacyPolicy = onOpenPrivacyPolicy
+            onDismiss = { showDisclosureDialog = false }
         )
     }
 
@@ -132,17 +129,14 @@ fun HomeScreen(
                 TopAppBar(
                     title = { Text("مصروفاتي", fontWeight = FontWeight.Bold, color = Color.White) },
                     actions = {
-                        IconButton(onClick = onOpenPrivacyPolicy) {
-                            Icon(Icons.Default.PrivacyTip, contentDescription = "سياسة الخصوصية", tint = Color.White)
-                        }
                         IconButton(onClick = onOpenAddExpense) {
                             Icon(Icons.Default.Add, contentDescription = "إضافة مصروف", tint = Color.White)
                         }
                         IconButton(onClick = onOpenDashboard) {
                             Icon(Icons.Default.BarChart, contentDescription = "الإحصائيات", tint = Color.White)
                         }
-                        IconButton(onClick = onOpenRules) {
-                            Icon(Icons.Default.Settings, contentDescription = "الإعدادات والقواعد", tint = Color.White)
+                        IconButton(onClick = onOpenTestSms) {
+                            Icon(Icons.Default.Settings, contentDescription = "اختبار رسالة SMS", tint = Color.White)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1E1E1E))

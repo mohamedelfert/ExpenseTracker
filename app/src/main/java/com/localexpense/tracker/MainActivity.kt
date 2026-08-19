@@ -53,14 +53,6 @@ class MainActivity : ComponentActivity() {
         startActivity(intent)
     }
 
-    // دالة فتح رابط سياسة الخصوصية في المتصفح الخارجي
-    private fun openPrivacyPolicy() {
-        // قم بستبدال هذا الرابط برابط سياسة الخصوصية الفعلية الخاص بك (مثل: Notion, GitHub Pages, Google Docs)
-        val privacyPolicyUrl = "https://your-privacy-policy-url.com" 
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(privacyPolicyUrl))
-        startActivity(intent)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -85,8 +77,7 @@ class MainActivity : ComponentActivity() {
                     onRequestSmsPermission = {
                         permissionLauncher.launch(SMS_PERMISSIONS)
                     },
-                    onOpenAppSettings = { openAppSettings() },
-                    onOpenPrivacyPolicy = { openPrivacyPolicy() }
+                    onOpenAppSettings = { openAppSettings() }
                 )
             }
         }

@@ -1,16 +1,29 @@
 package com.localexpense.tracker.ui
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Modifier
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -19,8 +32,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun SmsProminentDisclosureDialog(
     onAccept: () -> Unit,
-    onDismiss: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit
+    onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -33,12 +45,12 @@ fun SmsProminentDisclosureDialog(
                 imageVector = Icons.Default.Security,
                 contentDescription = null,
                 tint = Color(0xFF80CBC4),
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.width(36.dp)
             )
         },
         title = {
             Text(
-                text = "إفصاح هامة حول الخصوصية وأذونات الرسائل",
+                text = "إفصاح هام حول الخصوصية وأذونات الرسائل",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -50,22 +62,22 @@ fun SmsProminentDisclosureDialog(
                     .verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = "يحتاج التطبيق إلى إذن قراءة الرسائل النصية القصيرة (READ_SMS) لتقديم ميزته الأساسية وهي:",
+                    text = "يحتاج التطبيق إلى إذن قراءة الرسائل النصية القصيرة لتقديم ميزته الأساسية:",
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Text(
-                    text = "• التعرف التلقائي على إشعارات المعاملات البنكية والمصروفات وتسجيلها داخل التطبيق.",
+                    text = "• التعرف التلقائي على رسائل المعاملات البنكية وتسجيلها كمصروفات داخل التطبيق فقط.",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color(0xFF80CBC4)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
-                
+
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF263238)),
                     shape = RoundedCornerShape(8.dp)
@@ -78,29 +90,16 @@ fun SmsProminentDisclosureDialog(
                             imageVector = Icons.Default.Lock,
                             contentDescription = null,
                             tint = Color(0xFFA5D6A7),
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.width(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "ضمان الأمان والخصوصية: يتم تحليل وقراءة المعاملات محلياً 100% على جهازك فقط. لا يتم رفع، مشاركة، أو نقل أي جزء من رسائلك إلى أي سيرفرات أو أطراف خارجية.",
+                            text = "ضمان الخصوصية: يتم تحليل الرسائل محليًا 100% على جهازك فقط. لا يوجد سيرفر، ولا يتم رفع أو مشاركة أي جزء من رسائلك مع أي طرف خارجي.",
                             fontSize = 11.sp,
                             color = Color(0xFFA5D6A7),
                             lineHeight = 16.sp
                         )
                     }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                TextButton(
-                    onClick = onOpenPrivacyPolicy,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text(
-                        text = "قراءة سياسة الخصوصية الكاملة",
-                        fontSize = 11.sp,
-                        color = Color(0xFF4DB6AC)
-                    )
                 }
             }
         },

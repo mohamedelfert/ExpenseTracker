@@ -8,12 +8,14 @@ import com.localexpense.tracker.data.Category
 import com.localexpense.tracker.data.CategoryTotal
 import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.ExpenseRepository
-import com.localexpense.tracker.data.SmsRule
 import com.localexpense.tracker.data.SourceTotal
 import com.localexpense.tracker.parser.SmsImporter
+import com.localexpense.tracker.parser.SmsParser
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -24,109 +26,60 @@ sealed interface ImportState {
     data class Error(val message: String) : ImportState
 }
 
-data class RuleTestResult(
+/** Result of running the parser against a pasted real message, for the "اختبار رسالة" screen. */
+data class SmsTestResult(
     val matched: Boolean,
     val amount: Double? = null,
-    val merchant: String? = null
+    val merchant: String? = null,
+    val bankName: String? = null,
+    val categoryName: String? = null
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getDatabase(application)
-    private val repository = ExpenseRepository(database.expenseDao())
+    private val repository = ExpenseRepository(database.expenseDao(), database.categoryDao())
 
-    private val _expenses = MutableStateFlow<List<Expense>>(emptyList())
-    val expenses: StateFlow<List<Expense>> = _expenses.asStateFlow()
+    val expenses: StateFlow<List<Expense>> = repository.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _totalsBySource = MutableStateFlow<List<SourceTotal>>(emptyList())
-    val totalsBySource: StateFlow<List<SourceTotal>> = _totalsBySource.asStateFlow()
+    val totalsBySource: StateFlow<List<SourceTotal>> = repository.observeTotalsBySource()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _totalsByCategory = MutableStateFlow<List<CategoryTotal>>(emptyList())
-    val totalsByCategory: StateFlow<List<CategoryTotal>> = _totalsByCategory.asStateFlow()
+    val categories: StateFlow<List<Category>> = repository.observeCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _monthTotalsByCategory = MutableStateFlow<List<CategoryTotal>>(emptyList())
-    val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = _monthTotalsByCategory.asStateFlow()
+    private val monthRange: Pair<Long, Long> get() {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0)
+        val start = cal.timeInMillis
+        cal.add(Calendar.MONTH, 1)
+        val end = cal.timeInMillis - 1
+        return start to end
+    }
 
-    private val _categories = MutableStateFlow<List<Category>>(emptyList())
-    val categories: StateFlow<List<Category>> = _categories.asStateFlow()
-
-    private val _rules = MutableStateFlow<List<SmsRule>>(emptyList())
-    val rules: StateFlow<List<SmsRule>> = _rules.asStateFlow()
+    val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = monthRange.let { (s, e) ->
+        repository.observeTotalsByCategoryBetween(s, e)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importState: StateFlow<ImportState> = _importState.asStateFlow()
 
-    private val _importStatusMessage = MutableStateFlow<String?>(null)
-    val importStatusMessage: StateFlow<String?> = _importStatusMessage.asStateFlow()
-
-    init {
+    /** Manual entry from the "إضافة مصروف يدوي" screen. */
+    fun addManualExpense(amount: Double, merchant: String, categoryName: String) {
         viewModelScope.launch {
-            repository.observeAll().collect { _expenses.value = it }
-        }
-        viewModelScope.launch {
-            repository.observeTotalsBySource().collect { _totalsBySource.value = it }
-        }
-        viewModelScope.launch {
-            repository.observeTotalsByCategory().collect { _totalsByCategory.value = it }
-        }
-        
-        loadCurrentMonthCategoryTotals()
-    }
-
-    private fun loadCurrentMonthCategoryTotals() {
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val startTime = calendar.timeInMillis
-
-        calendar.add(Calendar.MONTH, 1)
-        val endTime = calendar.timeInMillis - 1
-
-        viewModelScope.launch {
-            database.expenseDao().observeTotalsByCategoryBetween(startTime, endTime)
-                .collect { _monthTotalsByCategory.value = it }
-        }
-    }
-
-    fun addExpense(
-        amount: Double,
-        merchant: String,
-        bankName: String,
-        timestamp: Long = System.currentTimeMillis(),
-        rawBody: String = "",
-        categoryName: String = "عام"
-    ) {
-        viewModelScope.launch {
-            val expense = Expense(
-                amount = amount,
-                merchant = merchant,
-                bankName = bankName,
-                timestamp = timestamp,
-                rawBody = rawBody,
-                categoryName = categoryName
+            repository.insert(
+                Expense(
+                    amount = amount,
+                    merchant = merchant.ifBlank { "مصروف يدوي" },
+                    bankName = "يدوي",
+                    timestamp = System.currentTimeMillis(),
+                    rawBody = "",
+                    categoryName = categoryName.ifBlank { "عام" }
+                )
             )
-            repository.insert(expense)
         }
-    }
-
-    fun saveExpense(
-        amount: Double,
-        timestamp: Long = System.currentTimeMillis(),
-        categoryName: String = "عام",
-        merchant: String = "يدوي",
-        bankName: String = "يدوي"
-    ) {
-        addExpense(
-            amount = amount,
-            merchant = merchant,
-            bankName = bankName,
-            timestamp = timestamp,
-            categoryName = categoryName
-        )
     }
 
     fun updateExpense(expense: Expense) {
@@ -137,79 +90,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.delete(expense) }
     }
 
+    fun addCategory(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch { repository.addCategory(trimmed) }
+    }
+
+    fun deleteCategory(category: Category) {
+        viewModelScope.launch { repository.deleteCategory(category) }
+    }
+
+    /**
+     * Scans the phone's existing SMS inbox and backfills matching expenses.
+     * Safe to run more than once — messages already imported are skipped (see ExpenseDao.exists).
+     */
     fun importFromInbox() {
         viewModelScope.launch {
             _importState.value = ImportState.Running
             try {
                 val (scanned, inserted) = SmsImporter.importAllSms(getApplication())
                 _importState.value = ImportState.Done(scanned, inserted)
-                _importStatusMessage.value = "تم فحص $scanned رسالة، وتسجيل $inserted مصروف جديد"
             } catch (e: Exception) {
                 _importState.value = ImportState.Error(e.localizedMessage ?: "حدث خطأ أثناء الاستيراد")
             }
         }
     }
 
-    fun scanInbox() = importFromInbox()
-
-    fun saveRule(rule: SmsRule) {
-        viewModelScope.launch {
-            val currentList = _rules.value.toMutableList()
-            val index = currentList.indexOfFirst { it.id == rule.id }
-            if (index != -1) {
-                currentList[index] = rule
-            } else {
-                currentList.add(rule)
-            }
-            _rules.value = currentList
-        }
-    }
-
-    fun deleteRule(rule: SmsRule) {
-        viewModelScope.launch {
-            _rules.value = _rules.value.filter { it.id != rule.id }
-        }
-    }
-
-    fun testRule(sender: String, body: String, rule: SmsRule): RuleTestResult {
-        val senderRegex = rule.senderPattern.takeIf { it.isNotBlank() }?.let { Regex(it, RegexOption.IGNORE_CASE) }
-        val keywordRegex = rule.debitKeywordPattern.takeIf { it.isNotBlank() }?.let { Regex(it, RegexOption.IGNORE_CASE) }
-
-        val senderMatched = senderRegex?.containsMatchIn(sender) ?: true
-        val keywordMatched = keywordRegex?.containsMatchIn(body) ?: true
-
-        if (!senderMatched || !keywordMatched) {
-            return RuleTestResult(matched = false)
-        }
-
-        val amount = Regex(rule.amountPattern, RegexOption.IGNORE_CASE)
-            .find(body)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.replace(",", "")
-            ?.toDoubleOrNull()
-
-        val merchantMatch = rule.merchantPattern.takeIf { it.isNotBlank() }?.let {
-            Regex(it, RegexOption.IGNORE_CASE).find(body)?.groupValues?.getOrNull(1)
-        }
-
-        return RuleTestResult(
-            matched = amount != null,
-            amount = amount,
-            merchant = merchantMatch
+    /** Used by the "اختبار رسالة" screen: paste a real message, see what would be extracted. */
+    fun testSmsMessage(sender: String, body: String): SmsTestResult {
+        val expense = SmsParser.parseSms(sender, body, System.currentTimeMillis())
+            ?: return SmsTestResult(matched = false)
+        return SmsTestResult(
+            matched = true,
+            amount = expense.amount,
+            merchant = expense.merchant,
+            bankName = expense.bankName,
+            categoryName = expense.categoryName
         )
-    }
-
-    fun addCategory(name: String) {
-        viewModelScope.launch {
-            val newCategory = Category(name = name, isBuiltIn = false)
-            _categories.value = _categories.value + newCategory
-        }
-    }
-
-    fun deleteCategory(category: Category) {
-        viewModelScope.launch {
-            _categories.value = _categories.value.filter { it.id != category.id }
-        }
     }
 }
