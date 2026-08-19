@@ -55,7 +55,7 @@ fun HomeScreen(
 
     // استخدام mutableStateListOf لدعم Compose Snapshot State بدون مشاكل
     val selectedYears = remember { mutableStateListOf<String>() }
-    val archivedYears = remember { mutableStateListOf<String>() }
+    val archivedYears by viewModel.archivedYears.collectAsStateWithLifecycle()
     val isSelectionMode = selectedYears.isNotEmpty()
 
     val isImporting = importState is ImportState.Running
@@ -160,7 +160,7 @@ fun HomeScreen(
                     },
                     actions = {
                         IconButton(onClick = {
-                            archivedYears.addAll(selectedYears)
+                            viewModel.archiveYears(selectedYears.toSet())
                             selectedYears.clear()
                         }) {
                             Icon(Icons.Default.Archive, contentDescription = "أرشفة", tint = Color(0xFF80CBC4))

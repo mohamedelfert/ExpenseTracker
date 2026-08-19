@@ -1,6 +1,7 @@
 package com.localexpense.tracker.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.localexpense.tracker.data.Category
@@ -90,6 +91,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val rules: StateFlow<List<SmsRule>> = repository.observeRules()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val prefs = application.getSharedPreferences("expense_tracker_prefs", Context.MODE_PRIVATE)
+    private val _archivedYears = MutableStateFlow<Set<String>>(
+        prefs.getStringSet("archived_years", emptySet()) ?: emptySet()
+    )
+    val archivedYears: StateFlow<Set<String>> = _archivedYears.asStateFlow()
+
+    fun archiveYears(years: Set<String>) {
+        val current = _archivedYears.value.toMutableSet()
+        current.addAll(years)
+        prefs.edit().putStringSet("archived_years", current).apply()
+        _archivedYears.value = current
+    }
 
     fun addCategory(name: String) {
         val trimmed = name.trim()
