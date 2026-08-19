@@ -41,7 +41,8 @@ fun AppNavHost(
                 onOpenTestSms = { navController.navigate(Routes.TEST_SMS) },
                 onOpenAddExpense = { navController.navigate(Routes.ADD_EXPENSE) },
                 onOpenDashboard = { navController.navigate(Routes.DASHBOARD) },
-                onOpenRecurring = { navController.navigate(Routes.RECURRING) }
+                onOpenRecurring = { navController.navigate(Routes.RECURRING) },
+                onOpenRule = { navController.navigate(Routes.RULES) }
             )
         }
 

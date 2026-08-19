@@ -47,12 +47,7 @@ class ExpenseNotificationListener : NotificationListenerService() {
         if (expense != null) {
             // Save to DB
             CoroutineScope(Dispatchers.IO).launch {
-                val db = AppDatabase.getDatabase(applicationContext)
-                val repository = ExpenseRepository(
-                    db.expenseDao(),
-                    db.categoryDao(),
-                    db.smsRuleDao()
-                )
+                val repository = ExpenseRepository(applicationContext)
                 repository.insertExpense(expense)
             }
         }
