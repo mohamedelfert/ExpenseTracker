@@ -4,10 +4,12 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.localexpense.tracker.data.Budget
 import com.localexpense.tracker.data.Category
 import com.localexpense.tracker.data.CategoryTotal
 import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.ExpenseRepository
+import com.localexpense.tracker.data.RecurringExpense
 import com.localexpense.tracker.data.SourceTotal
 import com.localexpense.tracker.parser.SmsImporter
 import com.localexpense.tracker.parser.SmsParser
@@ -92,11 +94,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val rules: StateFlow<List<SmsRule>> = repository.observeRules()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val budgets: StateFlow<List<Budget>> = repository.observeBudgets()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recurringExpenses: StateFlow<List<RecurringExpense>> = repository.observeRecurringExpenses()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val prefs = application.getSharedPreferences("expense_tracker_prefs", Context.MODE_PRIVATE)
     private val _archivedYears = MutableStateFlow<Set<String>>(
         prefs.getStringSet("archived_years", emptySet()) ?: emptySet()
     )
     val archivedYears: StateFlow<Set<String>> = _archivedYears.asStateFlow()
+
+    init {
+        checkRecurringExpenses()
+    }
+
+    private fun checkRecurringExpenses() {
+        viewModelScope.launch {
+            val recurringList = repository.getRecurringExpensesSync()
+            val cal = Calendar.getInstance()
+            val currentDay = cal.get(Calendar.DAY_OF_MONTH)
+            val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.US).format(cal.time)
+            
+            for (recurring in recurringList) {
+                if (currentDay >= recurring.dayOfMonth && recurring.lastAddedMonth != currentMonthStr) {
+                    val expense = Expense(
+                        amount = recurring.amount,
+                        merchant = recurring.merchant,
+                        timestamp = cal.timeInMillis,
+                        bankName = recurring.bankName,
+                        categoryName = recurring.categoryName,
+                        rawBody = "Recurring: ${recurring.merchant}"
+                    )
+                    repository.insertExpense(expense)
+                    repository.updateRecurringExpense(recurring.copy(lastAddedMonth = currentMonthStr))
+                }
+            }
+        }
+    }
 
     fun archiveYears(years: Set<String>) {
         val current = _archivedYears.value.toMutableSet()
@@ -157,6 +193,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val removed = withContext(Dispatchers.IO) { repository.cleanupDuplicates() }
             _cleanupState.value = CleanupState.Done(removed)
         }
+    }
+
+    fun setBudget(categoryName: String, limitAmount: Double) {
+        viewModelScope.launch { repository.setBudget(Budget(categoryName, limitAmount)) }
+    }
+
+    fun deleteBudget(categoryName: String) {
+        viewModelScope.launch { repository.deleteBudget(categoryName) }
+    }
+
+    fun addRecurringExpense(amount: Double, merchant: String, bankName: String, categoryName: String, dayOfMonth: Int) {
+        viewModelScope.launch {
+            repository.insertRecurringExpense(
+                RecurringExpense(
+                    amount = amount,
+                    merchant = merchant,
+                    bankName = bankName,
+                    categoryName = categoryName,
+                    dayOfMonth = dayOfMonth,
+                    lastAddedMonth = ""
+                )
+            )
+        }
+    }
+
+    fun deleteRecurringExpense(recurringExpense: RecurringExpense) {
+        viewModelScope.launch { repository.deleteRecurringExpense(recurringExpense) }
     }
 
     fun importFromInbox() {

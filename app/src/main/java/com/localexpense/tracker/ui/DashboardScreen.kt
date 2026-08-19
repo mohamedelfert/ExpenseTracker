@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -28,6 +29,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -35,17 +37,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Canvas
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.localexpense.tracker.data.Category
 import com.localexpense.tracker.data.CategoryTotal
 import com.localexpense.tracker.viewmodel.MainViewModel
+import com.localexpense.tracker.util.CsvExporter
+import kotlinx.coroutines.launch
 
 private val ChartPalette = listOf(
     Color(0xFF0F6E56), Color(0xFFD85A30), Color(0xFFBA7517),
@@ -61,7 +72,30 @@ fun DashboardScreen(
 ) {
     val totalsByCategory by viewModel.monthTotalsByCategory.collectAsState()
     val categories by viewModel.categories.collectAsState()
+    val allExpenses by viewModel.expenses.collectAsState()
+    val budgets by viewModel.budgets.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var selectedCategoryForBudget by remember { mutableStateOf<String?>(null) }
+    
+    val context = LocalContext.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val csvString = CsvExporter.exportToCsv(allExpenses)
+                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        outputStream.write(csvString.toByteArray(Charsets.UTF_8))
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
 
     val grandTotal = totalsByCategory.sumOf { it.total }.coerceAtLeast(0.01)
 
@@ -72,6 +106,11 @@ fun DashboardScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowForward, contentDescription = "رجوع")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { exportLauncher.launch("expenses.csv") }) {
+                        Icon(Icons.Filled.Download, contentDescription = "تصدير إلى CSV")
                     }
                 }
             )
@@ -85,8 +124,21 @@ fun DashboardScreen(
         Column(Modifier.fillMaxSize().padding(padding)) {
 
             if (totalsByCategory.isNotEmpty()) {
-                StackedBar(totalsByCategory, grandTotal)
-                Spacer(Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    DonutChart(
+                        totals = totalsByCategory,
+                        grandTotal = grandTotal,
+                        modifier = Modifier.size(160.dp)
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("الإجمالي", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+                        Text("%.0f ج.م".format(grandTotal), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
             }
 
             Text(
@@ -106,10 +158,13 @@ fun DashboardScreen(
 
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f, fill = false)) {
                 itemsIndexed(totalsByCategory) { index: Int, item: CategoryTotal ->
+                    val budget = budgets.find { it.categoryName == item.categoryName }
                     CategoryTotalRow(
                         item = item,
                         color = ChartPalette[index % ChartPalette.size],
-                        percentage = (item.total / grandTotal * 100)
+                        percentage = (item.total / grandTotal * 100),
+                        budgetLimit = budget?.limitAmount,
+                        onSetBudget = { selectedCategoryForBudget = item.categoryName }
                     )
                 }
             }
@@ -140,59 +195,111 @@ fun DashboardScreen(
             }
         )
     }
-}
 
-@Composable
-private fun StackedBar(totals: List<CategoryTotal>, grandTotal: Double) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .height(14.dp)
-            .clip(RoundedCornerShape(8.dp))
-    ) {
-        totals.forEachIndexed { index, item ->
-            val weight = (item.total / grandTotal).toFloat().coerceAtLeast(0.01f)
-            Box(
-                modifier = Modifier
-                    .weight(weight)
-                    .fillMaxSize()
-                    .background(ChartPalette[index % ChartPalette.size])
-            )
-        }
+    selectedCategoryForBudget?.let { categoryName ->
+        val currentLimit = budgets.find { it.categoryName == categoryName }?.limitAmount ?: 0.0
+        SetBudgetDialog(
+            categoryName = categoryName,
+            currentLimit = currentLimit,
+            onDismiss = { selectedCategoryForBudget = null },
+            onConfirm = { amount ->
+                if (amount > 0) {
+                    viewModel.setBudget(categoryName, amount)
+                } else {
+                    viewModel.deleteBudget(categoryName)
+                }
+                selectedCategoryForBudget = null
+            }
+        )
     }
 }
 
 @Composable
-private fun CategoryTotalRow(item: CategoryTotal, color: Color, percentage: Double) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(CircleShape)
-                    .background(color)
+private fun DonutChart(totals: List<CategoryTotal>, grandTotal: Double, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        var startAngle = -90f
+        val strokeWidth = 40f
+        
+        totals.forEachIndexed { index, item ->
+            val sweepAngle = ((item.total / grandTotal) * 360f).toFloat()
+            drawArc(
+                color = ChartPalette[index % ChartPalette.size],
+                startAngle = startAngle,
+                sweepAngle = sweepAngle,
+                useCenter = false,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
             )
-            Text(
-                item.categoryName,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 10.dp)
-            )
+            startAngle += sweepAngle
         }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                "%.2f ج.م".format(item.total),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                "%.0f%%".format(percentage),
-                style = MaterialTheme.typography.labelSmall
-            )
+    }
+}
+
+import androidx.compose.foundation.clickable
+
+@Composable
+private fun CategoryTotalRow(item: CategoryTotal, color: Color, percentage: Double, budgetLimit: Double?, onSetBudget: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSetBudget)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                )
+                Text(
+                    item.categoryName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(start = 10.dp)
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "%.2f ج.م".format(item.total),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    "%.0f%%".format(percentage),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+        
+        if (budgetLimit != null && budgetLimit > 0) {
+            Spacer(modifier = Modifier.height(6.dp))
+            val progress = (item.total / budgetLimit).toFloat().coerceIn(0f, 1f)
+            val progressColor = when {
+                progress >= 1f -> Color(0xFFE53935)
+                progress >= 0.8f -> Color(0xFFFB8C00)
+                else -> Color(0xFF43A047)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = progressColor,
+                    trackColor = Color(0xFF263238)
+                )
+                Text(
+                    text = "من %.0f".format(budgetLimit),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(start = 8.dp),
+                    color = Color.Gray
+                )
+            }
         }
     }
 }
@@ -231,6 +338,47 @@ private fun AddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit
         confirmButton = {
             TextButton(onClick = { if (name.isNotBlank()) onConfirm(name) }) {
                 Text("إضافة")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("إلغاء") }
+        }
+    )
+}
+
+@Composable
+private fun SetBudgetDialog(
+    categoryName: String,
+    currentLimit: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    var amountText by remember { mutableStateOf(if (currentLimit > 0) currentLimit.toString() else "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("الميزانية: $categoryName") },
+        text = {
+            Column {
+                Text(
+                    "حدد ميزانية شهرية للفئة دي. سيتم إظهار شريط تقدم وتنبيهك عند الاقتراب من الحد. اكتب 0 للإلغاء.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    label = { Text("المبلغ") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { 
+                val amount = amountText.toDoubleOrNull() ?: 0.0
+                onConfirm(amount) 
+            }) {
+                Text("حفظ")
             }
         },
         dismissButton = {

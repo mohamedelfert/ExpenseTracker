@@ -6,13 +6,17 @@ import kotlinx.coroutines.flow.Flow
 class ExpenseRepository(
     private val expenseDao: ExpenseDao,
     private val categoryDao: CategoryDao,
-    private val smsRuleDao: SmsRuleDao
+    private val smsRuleDao: SmsRuleDao,
+    private val budgetDao: BudgetDao,
+    private val recurringExpenseDao: RecurringExpenseDao
 ) {
 
     constructor(context: Context) : this(
         AppDatabase.getDatabase(context).expenseDao(),
         AppDatabase.getDatabase(context).categoryDao(),
-        AppDatabase.getDatabase(context).smsRuleDao()
+        AppDatabase.getDatabase(context).smsRuleDao(),
+        AppDatabase.getDatabase(context).budgetDao(),
+        AppDatabase.getDatabase(context).recurringExpenseDao()
     )
 
     fun observeAll(): Flow<List<Expense>> = expenseDao.observeAll()
@@ -54,4 +58,14 @@ class ExpenseRepository(
     fun observeRules(): Flow<List<SmsRule>> = smsRuleDao.observeAll()
     suspend fun insertRule(rule: SmsRule): Long = smsRuleDao.insert(rule)
     suspend fun deleteRule(rule: SmsRule) = smsRuleDao.delete(rule)
+
+    fun observeBudgets(): Flow<List<Budget>> = budgetDao.observeAll()
+    suspend fun setBudget(budget: Budget) = budgetDao.insert(budget)
+    suspend fun deleteBudget(categoryName: String) = budgetDao.delete(categoryName)
+
+    fun observeRecurringExpenses(): Flow<List<RecurringExpense>> = recurringExpenseDao.observeAll()
+    suspend fun getRecurringExpensesSync(): List<RecurringExpense> = recurringExpenseDao.getAllSync()
+    suspend fun insertRecurringExpense(expense: RecurringExpense): Long = recurringExpenseDao.insert(expense)
+    suspend fun updateRecurringExpense(expense: RecurringExpense) = recurringExpenseDao.update(expense)
+    suspend fun deleteRecurringExpense(expense: RecurringExpense) = recurringExpenseDao.delete(expense)
 }

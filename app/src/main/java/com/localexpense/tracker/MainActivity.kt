@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,6 +33,7 @@ private val SMS_PERMISSIONS = arrayOf(
 class MainActivity : ComponentActivity() {
 
     private var smsPermissionGranted = mutableStateOf(false)
+    private var notificationAccessGranted = mutableStateOf(false)
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -42,8 +44,13 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
 
+    private fun hasNotificationAccess(): Boolean {
+        return NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+    }
+
     private fun refreshPermissionState() {
         smsPermissionGranted.value = hasSmsPermissions()
+        notificationAccessGranted.value = hasNotificationAccess()
     }
 
     private fun openAppSettings() {
@@ -51,6 +58,10 @@ class MainActivity : ComponentActivity() {
             data = Uri.fromParts("package", packageName, null)
         }
         startActivity(intent)
+    }
+
+    private fun openNotificationSettings() {
+        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,7 +73,8 @@ class MainActivity : ComponentActivity() {
             ExpenseTrackerTheme {
                 val viewModel: MainViewModel = viewModel()
                 val navController = rememberNavController()
-                val granted by smsPermissionGranted
+                val smsGranted by smsPermissionGranted
+                val notifGranted by notificationAccessGranted
 
                 // إعادت فحص حالة الإذن عند العودة للتطبيق من إعدادات النظام
                 LifecycleResumeEffect(Unit) {
@@ -73,10 +85,12 @@ class MainActivity : ComponentActivity() {
                 AppNavHost(
                     navController = navController,
                     viewModel = viewModel,
-                    smsPermissionGranted = granted,
+                    smsPermissionGranted = smsGranted,
+                    notificationAccessGranted = notifGranted,
                     onRequestSmsPermission = {
                         permissionLauncher.launch(SMS_PERMISSIONS)
                     },
+                    onRequestNotificationPermission = { openNotificationSettings() },
                     onOpenAppSettings = { openAppSettings() }
                 )
             }

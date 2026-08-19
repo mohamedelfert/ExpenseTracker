@@ -14,6 +14,8 @@ object Routes {
     const val TEST_SMS = "test_sms"
     const val ADD_EXPENSE = "add_expense"
     const val DASHBOARD = "dashboard"
+    const val RECURRING = "recurring"
+    const val RULES = "rules"
 }
 
 @Composable
@@ -21,7 +23,9 @@ fun AppNavHost(
     navController: NavHostController = rememberNavController(),
     viewModel: MainViewModel,
     smsPermissionGranted: Boolean,
+    notificationAccessGranted: Boolean,
     onRequestSmsPermission: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onOpenAppSettings: () -> Unit
 ) {
     NavHost(navController = navController, startDestination = Routes.HOME) {
@@ -30,11 +34,14 @@ fun AppNavHost(
             HomeScreen(
                 viewModel = viewModel,
                 smsPermissionGranted = smsPermissionGranted,
+                notificationAccessGranted = notificationAccessGranted,
                 onRequestSmsPermission = onRequestSmsPermission,
+                onRequestNotificationPermission = onRequestNotificationPermission,
                 onOpenAppSettings = onOpenAppSettings,
                 onOpenTestSms = { navController.navigate(Routes.TEST_SMS) },
                 onOpenAddExpense = { navController.navigate(Routes.ADD_EXPENSE) },
-                onOpenDashboard = { navController.navigate(Routes.DASHBOARD) }
+                onOpenDashboard = { navController.navigate(Routes.DASHBOARD) },
+                onOpenRecurring = { navController.navigate(Routes.RECURRING) }
             )
         }
 
@@ -50,6 +57,14 @@ fun AppNavHost(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() }
             )
+        }
+
+        composable(Routes.RECURRING) {
+            RecurringExpensesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.RULES) {
+            RulesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.ADD_EXPENSE) {

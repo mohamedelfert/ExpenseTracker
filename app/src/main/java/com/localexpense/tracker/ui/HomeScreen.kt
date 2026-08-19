@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -36,11 +37,14 @@ import java.util.*
 fun HomeScreen(
     viewModel: MainViewModel,
     smsPermissionGranted: Boolean,
+    notificationAccessGranted: Boolean,
     onRequestSmsPermission: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onOpenTestSms: () -> Unit,
     onOpenAddExpense: () -> Unit,
-    onOpenDashboard: () -> Unit
+    onOpenDashboard: () -> Unit,
+    onOpenRecurring: () -> Unit
 ) {
     val expenses by viewModel.expenses.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
@@ -172,6 +176,9 @@ fun HomeScreen(
                 TopAppBar(
                     title = { Text("مصروفاتي", fontWeight = FontWeight.Bold, color = Color.White) },
                     actions = {
+                        IconButton(onClick = onOpenRecurring) {
+                            Icon(Icons.Default.DateRange, contentDescription = "الدوريات", tint = Color.White)
+                        }
                         IconButton(onClick = onOpenAddExpense) {
                             Icon(Icons.Default.Add, contentDescription = "إضافة مصروف", tint = Color.White)
                         }
@@ -194,9 +201,12 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            if (!smsPermissionGranted) {
-                SmsPermissionCard(
+            if (!smsPermissionGranted || !notificationAccessGranted) {
+                PermissionsCard(
+                    smsGranted = smsPermissionGranted,
+                    notifGranted = notificationAccessGranted,
                     onRequestSmsPermission = { showDisclosureDialog = true },
+                    onRequestNotificationPermission = onRequestNotificationPermission,
                     onOpenAppSettings = onOpenAppSettings
                 )
             }
@@ -385,8 +395,11 @@ fun HomeScreen(
 }
 
 @Composable
-private fun SmsPermissionCard(
+private fun PermissionsCard(
+    smsGranted: Boolean,
+    notifGranted: Boolean,
     onRequestSmsPermission: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     onOpenAppSettings: () -> Unit
 ) {
     Card(
@@ -405,7 +418,7 @@ private fun SmsPermissionCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "إذن قراءة الرسائل مطلوب",
+                    text = "أذونات القراءة مطلوبة",
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFFFB74D),
                     fontSize = 14.sp
@@ -413,7 +426,7 @@ private fun SmsPermissionCard(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "يحتاج التطبيق لإذن قراءة الرسائل القصيرة ليتعرف على المعاملات البنكية ويقرأ المصروفات تلقائياً.",
+                text = "يحتاج التطبيق لإذن قراءة الإشعارات (مستحسن) أو قراءة الرسائل (بديل) ليتعرف على المعاملات البنكية ويقرأ المصروفات تلقائياً.",
                 color = Color(0xFFFFE0B2),
                 fontSize = 12.sp
             )
@@ -423,14 +436,25 @@ private fun SmsPermissionCard(
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(onClick = onOpenAppSettings) {
-                    Text("فتح الإعدادات", color = Color(0xFFFFB74D), fontSize = 12.sp)
+                    Text("الإعدادات", color = Color(0xFFFFB74D), fontSize = 12.sp)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = onRequestSmsPermission,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF57C00))
-                ) {
-                    Text("منح الإذن الآن", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                if (!notifGranted) {
+                    Button(
+                        onClick = onRequestNotificationPermission,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B))
+                    ) {
+                        Text("إذن الإشعارات", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                if (!smsGranted) {
+                    Button(
+                        onClick = onRequestSmsPermission,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF57C00))
+                    ) {
+                        Text("إذن الرسائل", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             }
         }
