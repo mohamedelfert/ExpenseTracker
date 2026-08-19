@@ -1,5 +1,6 @@
 package com.localexpense.tracker.data
 
+import android.content.Context
 import kotlinx.coroutines.flow.Flow
 
 class ExpenseRepository(
@@ -7,7 +8,15 @@ class ExpenseRepository(
     private val categoryDao: CategoryDao
 ) {
 
+    // Constructor to instantiate directly using Application context
+    constructor(context: Context) : this(
+        AppDatabase.getDatabase(context).expenseDao(),
+        AppDatabase.getDatabase(context).categoryDao()
+    )
+
     fun observeAll(): Flow<List<Expense>> = expenseDao.observeAll()
+
+    fun observeExpenses(): Flow<List<Expense>> = expenseDao.observeAll()
 
     fun observeTotalsBySource(): Flow<List<SourceTotal>> = expenseDao.observeTotalsBySource()
 
@@ -18,9 +27,17 @@ class ExpenseRepository(
 
     suspend fun insert(expense: Expense): Long = expenseDao.insertExpense(expense)
 
+    suspend fun insertExpense(expense: Expense): Long = expenseDao.insertExpense(expense)
+
+    suspend fun addExpense(expense: Expense): Long = expenseDao.insertExpense(expense)
+
     suspend fun update(expense: Expense) = expenseDao.update(expense)
 
+    suspend fun updateExpense(expense: Expense) = expenseDao.update(expense)
+
     suspend fun delete(expense: Expense) = expenseDao.delete(expense)
+
+    suspend fun deleteExpense(expense: Expense) = expenseDao.delete(expense)
 
     fun observeCategories(): Flow<List<Category>> = categoryDao.observeAll()
 
