@@ -1,7 +1,6 @@
 package com.localexpense.tracker.ui
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Modifier
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth

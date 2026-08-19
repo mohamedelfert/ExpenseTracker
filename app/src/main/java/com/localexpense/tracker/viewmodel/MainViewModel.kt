@@ -21,10 +21,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 
-data class SmsRule(
-    val id: Long = 0,
-    val isEnabled: Boolean = true
-)
+import com.localexpense.tracker.data.SmsRule
+
+sealed class CleanupState {
+    data object Idle : CleanupState()
+    data object Running : CleanupState()
+    data class Done(val removed: Int) : CleanupState()
+}
 
 data class RuleTestResult(
     val matched: Boolean,
@@ -33,10 +36,19 @@ data class RuleTestResult(
     val bankName: String? = null
 )
 
+data class SmsTestResult(
+    val matched: Boolean,
+    val amount: Double? = null,
+    val merchant: String? = null,
+    val bankName: String? = null,
+    val categoryName: String? = null
+)
+
 sealed class ImportState {
     data object Idle : ImportState()
     data object Running : ImportState()
     data class Done(val scanned: Int, val imported: Int) : ImportState()
+    data class Error(val message: String) : ImportState()
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -72,6 +84,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importState: StateFlow<ImportState> = _importState.asStateFlow()
+
+    private val _cleanupState = MutableStateFlow<CleanupState>(CleanupState.Idle)
+    val cleanupState: StateFlow<CleanupState> = _cleanupState.asStateFlow()
+
+    val rules: StateFlow<List<SmsRule>> = repository.observeRules()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun addCategory(name: String) {
         val trimmed = name.trim()
@@ -110,9 +128,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteExpense(expense) }
     }
 
-    fun saveRule(rule: SmsRule) {}
+    fun saveRule(rule: SmsRule) {
+        viewModelScope.launch { repository.insertRule(rule) }
+    }
 
-    fun deleteRule(rule: SmsRule) {}
+    fun deleteRule(rule: SmsRule) {
+        viewModelScope.launch { repository.deleteRule(rule) }
+    }
+
+    fun cleanupDuplicateExpenses() {
+        viewModelScope.launch {
+            _cleanupState.value = CleanupState.Running
+            // Dummy logic or real if repository has it
+            val removed = withContext(Dispatchers.IO) { repository.cleanupDuplicates() }
+            _cleanupState.value = CleanupState.Done(removed)
+        }
+    }
 
     fun importFromInbox() {
         viewModelScope.launch {
@@ -128,14 +159,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _importState.value = ImportState.Idle
     }
 
-    fun testRule(sender: String, body: String, rule: SmsRule): RuleTestResult {
+    fun testSmsMessage(sender: String, body: String): SmsTestResult {
         val result = SmsParser.parseSms(sender, body, System.currentTimeMillis())
-            ?: return RuleTestResult(matched = false)
-        return RuleTestResult(
+            ?: return SmsTestResult(matched = false)
+        return SmsTestResult(
             matched = true,
             amount = result.amount,
             merchant = result.merchant,
-            bankName = result.bankName
+            bankName = result.bankName,
+            categoryName = result.categoryName
         )
+    }
+
+    fun testRule(sender: String, body: String, rule: SmsRule): RuleTestResult {
+        try {
+            val senderRegex = Regex(rule.senderPattern, RegexOption.IGNORE_CASE)
+            if (rule.senderPattern.isNotBlank() && !senderRegex.containsMatchIn(sender)) return RuleTestResult(matched = false)
+
+            val keywordRegex = Regex(rule.debitKeywordPattern, RegexOption.IGNORE_CASE)
+            if (!keywordRegex.containsMatchIn(body)) return RuleTestResult(matched = false)
+
+            val amountRegex = Regex(rule.amountPattern, RegexOption.IGNORE_CASE)
+            val amountMatch = amountRegex.find(body)
+            val amountStr = amountMatch?.groupValues?.getOrNull(1)?.replace(",", "")
+            val amount = amountStr?.toDoubleOrNull() ?: return RuleTestResult(matched = false)
+
+            var merchant: String? = null
+            if (rule.merchantPattern.isNotBlank()) {
+                val merchantRegex = Regex(rule.merchantPattern, RegexOption.IGNORE_CASE)
+                val merchantMatch = merchantRegex.find(body)
+                merchant = merchantMatch?.groupValues?.getOrNull(1)?.trim()
+            }
+
+            return RuleTestResult(
+                matched = true,
+                amount = amount,
+                merchant = merchant,
+                bankName = rule.bankName
+            )
+        } catch (e: Exception) {
+            return RuleTestResult(matched = false)
+        }
     }
 }
