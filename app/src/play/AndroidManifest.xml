@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Manifest خاص بنسخة Google Play فقط.
+    بيتم دمجه مع app/src/main/AndroidManifest.xml وقت البناء (Manifest Merger)،
+    وبيشيل أذونات الـ SMS المقيدة ويعطّل الـ Receiver المرتبط بيها، عشان
+    التطبيق يفضل متوافق مع سياسة "Restricted Permissions" بتاعة جوجل بلاي.
+    مصدر الالتقاط التلقائي الوحيد في النسخة دي هو NotificationListenerService
+    (قراءة إشعارات تطبيقات البنوك)، بالإضافة للإدخال اليدوي.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission
+        android:name="android.permission.RECEIVE_SMS"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.READ_SMS"
+        tools:node="remove" />
+
+    <application>
+        <receiver
+            android:name=".receiver.SmsReceiver"
+            android:enabled="false"
+            tools:node="merge" />
+    </application>
+
+</manifest>

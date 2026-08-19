@@ -1,24 +1,82 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
 }
 
+// يقرأ بيانات التوقيع من keystore.properties (ملف محلي غير مرفوع على Git).
+// لو الملف مش موجود (زي بيئة الـ CI أو أول مرة)، الـ release build هيبني من غير توقيع
+// بدل ما يفشل، عشان تقدر تكمل شغل عادي وتضيف الملف وقت الرفع الفعلي فقط.
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val hasSigningConfig = keystorePropertiesFile.exists()
+if (hasSigningConfig) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
 android {
     namespace = "com.localexpense.tracker"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.localexpense.tracker"
         minSdk = 26
-        targetSdk = 34
+        // Google Play بيلزم كل التطبيقات الجديدة تستهدف Android 16 (API 36)
+        // اعتبارًا من 31 أغسطس 2026. راجع:
+        // https://developer.android.com/google/play/requirements/target-sdk
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        // فلاج بيتحكم في إظهار/تفعيل مسار قراءة الـ SMS المباشرة داخل الكود.
+        // بيتغيّر قيمته تلقائيًا حسب الـ flavor (play / direct) تحت.
+        buildConfigField("boolean", "ENABLE_SMS_IMPORT", "true")
+    }
+
+    signingConfigs {
+        if (hasSigningConfig) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
+    // يفصل التطبيق لنسختين من نفس الكود:
+    // - play:   نسخة متجر جوجل بلاي. من غير RECEIVE_SMS/READ_SMS إطلاقًا، تعتمد
+    //           فقط على قراءة إشعارات تطبيقات البنوك (Notification Listener) +
+    //           الإدخال اليدوي. أكثر توافقًا مع سياسة الأذونات المقيدة في جوجل بلاي.
+    // - direct: النسخة الكاملة (زي ما هي دلوقتي) بما فيها الالتقاط الفوري لرسائل
+    //           الـ SMS، تُوزَّع كـ APK مباشر بره المتجر (GitHub مثلاً) لمين ما
+    //           يفضّل الميزة دي بالذات.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("play") {
+            dimension = "distribution"
+            buildConfigField("boolean", "ENABLE_SMS_IMPORT", "false")
+        }
+        create("direct") {
+            dimension = "distribution"
+            applicationIdSuffix = ".direct"
+            buildConfigField("boolean", "ENABLE_SMS_IMPORT", "true")
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            if (hasSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -33,6 +91,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {

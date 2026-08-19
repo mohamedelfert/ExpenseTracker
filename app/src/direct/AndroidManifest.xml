@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    نسخة "direct" (بره جوجل بلاي) بتستخدم app/src/main/AndroidManifest.xml
+    كامل من غير أي تعديل - بما فيه أذونات RECEIVE_SMS/READ_SMS والـ SmsReceiver
+    مفعّلين زي ما هم. الملف ده موجود بس عشان اكتمال بنية الـ flavors.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

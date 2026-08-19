@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+        أذونات الـ SMS دي بتتشال بالكامل في نسخة "play" (راجع
+        app/src/play/AndroidManifest.xml) عشان تتوافق مع سياسة Google Play
+        للأذونات المقيدة (RECEIVE_SMS/READ_SMS محصورة تقريبًا في تطبيقات
+        الرسائل الافتراضية). موجودة هنا فقط عشان نسخة "direct" اللي بتتوزّع
+        بره المتجر.
+    -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -24,6 +32,7 @@
             </intent-filter>
         </activity>
 
+        <!-- بيتعطّل تلقائيًا في نسخة "play" (android:enabled يتجاوَز في manifest الفلافور) -->
         <receiver
             android:name=".receiver.SmsReceiver"
             android:enabled="true"

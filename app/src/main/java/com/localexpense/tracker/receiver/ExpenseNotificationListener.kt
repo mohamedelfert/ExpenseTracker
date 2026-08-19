@@ -12,7 +12,10 @@ import kotlinx.coroutines.launch
 
 class ExpenseNotificationListener : NotificationListenerService() {
 
-    private val validPackages = listOf(
+    // استخدام Set + تطابق تام (بدل .contains) عشان نمنع أي تطبيق خبيث بإيسم
+    // باكيدج بيحتوي جزئيًا على اسم بنك حقيقي (مثلاً "com.cib.cibmobile.fake")
+    // من إنه يتقبل هنا ويقدر يبعت بيانات مصروفات مزيفة.
+    private val validPackages = setOf(
         "com.cib.cibmobile", // CIB
         "com.nbe.nbebm", // NBE
         "com.alexbank.alexmobile", // Bank Alex
@@ -30,7 +33,7 @@ class ExpenseNotificationListener : NotificationListenerService() {
         if (sbn == null) return
         
         val packageName = sbn.packageName
-        if (validPackages.none { packageName.contains(it, ignoreCase = true) }) return
+        if (packageName !in validPackages) return
 
         val extras = sbn.notification.extras
         val title = extras.getString(Notification.EXTRA_TITLE) ?: ""

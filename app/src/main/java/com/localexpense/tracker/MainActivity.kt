@@ -21,9 +21,14 @@ import com.localexpense.tracker.ui.theme.ExpenseTrackerTheme
 import com.localexpense.tracker.viewmodel.MainViewModel
 
 /**
- * الأذونات الحساسة المطلوبة:
+ * الأذونات الحساسة المطلوبة (نسخة "direct" فقط):
  * - RECEIVE_SMS: التقاط الرسائل البنكية فور وصولها لتحديث البيانات حياً.
  * - READ_SMS: قراءة الرسائل القديمة من صندوق الوارد لاستيراد المصروفات.
+ *
+ * في نسخة "play" الفلاج BuildConfig.ENABLE_SMS_IMPORT بيبقى false والأذونات
+ * دي مش حتى معلنة في الـ Manifest (اتشالت في app/src/play/AndroidManifest.xml)،
+ * فمفيش داعي نطلبها أو نحاول نتحقق منها هنا - الاعتماد بيبقى بالكامل على
+ * NotificationListenerService (قراءة إشعارات تطبيقات البنوك) والإدخال اليدوي.
  */
 private val SMS_PERMISSIONS = arrayOf(
     Manifest.permission.RECEIVE_SMS,
@@ -39,10 +44,12 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ -> refreshPermissionState() }
 
-    private fun hasSmsPermissions(): Boolean =
-        SMS_PERMISSIONS.all {
+    private fun hasSmsPermissions(): Boolean {
+        if (!BuildConfig.ENABLE_SMS_IMPORT) return false
+        return SMS_PERMISSIONS.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
+    }
 
     private fun hasNotificationAccess(): Boolean {
         return NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
@@ -88,7 +95,11 @@ class MainActivity : ComponentActivity() {
                     smsPermissionGranted = smsGranted,
                     notificationAccessGranted = notifGranted,
                     onRequestSmsPermission = {
-                        permissionLauncher.launch(SMS_PERMISSIONS)
+                        // في نسخة "play" الأذونات دي مش معلنة أصلاً في الـ Manifest،
+                        // فمحاولة طلبها هتترفض من النظام تلقائيًا - نتجاهلها بأمان.
+                        if (BuildConfig.ENABLE_SMS_IMPORT) {
+                            permissionLauncher.launch(SMS_PERMISSIONS)
+                        }
                     },
                     onRequestNotificationPermission = { openNotificationSettings() },
                     onOpenAppSettings = { openAppSettings() }

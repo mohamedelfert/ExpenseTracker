@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.localexpense.tracker.BuildConfig
 import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.viewmodel.CleanupState
 import com.localexpense.tracker.viewmodel.ImportState
@@ -201,7 +202,12 @@ fun HomeScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            if (!smsPermissionGranted || !notificationAccessGranted) {
+            // في نسخة "play" مفيش إذن SMS من الأساس (BuildConfig.ENABLE_SMS_IMPORT = false)،
+            // فبطاقة الأذونات والزرار بتاعها بيقتصروا على إذن الإشعارات بس.
+            val needsPermissionsCard = !notificationAccessGranted ||
+                (BuildConfig.ENABLE_SMS_IMPORT && !smsPermissionGranted)
+
+            if (needsPermissionsCard) {
                 PermissionsCard(
                     smsGranted = smsPermissionGranted,
                     notifGranted = notificationAccessGranted,
@@ -211,28 +217,33 @@ fun HomeScreen(
                 )
             }
 
-            Button(
-                onClick = {
-                    if (smsPermissionGranted) viewModel.importFromInbox() else showDisclosureDialog = true
-                },
-                enabled = !isImporting,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp)
-            ) {
-                if (isImporting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("جاري الاستيراد...", color = Color.White)
-                } else {
-                    Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("مزامنة واستيراد الرسائل", color = Color.White)
+            // زرار "استيراد صندوق الوارد" بيحتاج READ_SMS، فمش متاح إلا في نسخة
+            // "direct". نسخة "play" بتلتقط المصروفات تلقائيًا من الإشعارات فور
+            // وصولها من غير أي زرار مزامنة يدوي.
+            if (BuildConfig.ENABLE_SMS_IMPORT) {
+                Button(
+                    onClick = {
+                        if (smsPermissionGranted) viewModel.importFromInbox() else showDisclosureDialog = true
+                    },
+                    enabled = !isImporting,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    if (isImporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("جاري الاستيراد...", color = Color.White)
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("مزامنة واستيراد الرسائل", color = Color.White)
+                    }
                 }
             }
 
@@ -426,7 +437,11 @@ private fun PermissionsCard(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "يحتاج التطبيق لإذن قراءة الإشعارات (مستحسن) أو قراءة الرسائل (بديل) ليتعرف على المعاملات البنكية ويقرأ المصروفات تلقائياً.",
+                text = if (BuildConfig.ENABLE_SMS_IMPORT) {
+                    "يحتاج التطبيق لإذن قراءة الإشعارات (مستحسن) أو قراءة الرسائل (بديل) ليتعرف على المعاملات البنكية ويقرأ المصروفات تلقائياً."
+                } else {
+                    "يحتاج التطبيق لإذن قراءة الإشعارات ليتعرف على المعاملات البنكية ويسجّل المصروفات تلقائياً. البيانات كلها بتفضل على جهازك فقط."
+                },
                 color = Color(0xFFFFE0B2),
                 fontSize = 12.sp
             )
@@ -448,7 +463,7 @@ private fun PermissionsCard(
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
-                if (!smsGranted) {
+                if (BuildConfig.ENABLE_SMS_IMPORT && !smsGranted) {
                     Button(
                         onClick = onRequestSmsPermission,
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF57C00))
