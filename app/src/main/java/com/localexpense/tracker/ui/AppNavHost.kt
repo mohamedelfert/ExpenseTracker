@@ -4,9 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.localexpense.tracker.viewmodel.MainViewModel
 
 object Routes {
@@ -41,8 +43,7 @@ fun AppNavHost(
                 onOpenTestSms = { navController.navigate(Routes.TEST_SMS) },
                 onOpenAddExpense = { navController.navigate(Routes.ADD_EXPENSE) },
                 onOpenDashboard = { navController.navigate(Routes.DASHBOARD) },
-                onOpenRecurring = { navController.navigate(Routes.RECURRING) },
-                onOpenRule = { navController.navigate(Routes.RULES) }
+                onOpenRecurring = { navController.navigate(Routes.RECURRING) }
             )
         }
 
@@ -65,7 +66,23 @@ fun AppNavHost(
         }
 
         composable(Routes.RULES) {
-            RulesScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            RulesScreen(
+                viewModel = viewModel, 
+                onBack = { navController.popBackStack() },
+                onOpenRule = { ruleId -> navController.navigate("${Routes.RULES}/$ruleId") }
+            )
+        }
+
+        composable(
+            route = "${Routes.RULES}/{ruleId}",
+            arguments = listOf(navArgument("ruleId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val ruleId = backStackEntry.arguments?.getLong("ruleId") ?: -1L
+            RuleEditScreen(
+                viewModel = viewModel,
+                ruleId = ruleId,
+                onBack = { navController.popBackStack() }
+            )
         }
 
         composable(Routes.ADD_EXPENSE) {
