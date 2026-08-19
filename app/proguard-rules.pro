@@ -32,3 +32,12 @@
 
 # --- منع حذف الـ Regex/parsing logic الخاص بتحليل رسائل البنوك عن طريق الخطأ ---
 -keep class com.localexpense.tracker.parser.** { *; }
+
+# --- SQLCipher (كود native عن طريق JNI + reflection داخلي) ---
+-keep class net.sqlcipher.** { *; }
+-keep class net.sqlcipher.database.* { *; }
+-dontwarn net.sqlcipher.**
+
+# --- مكوّنات تشفير قاعدة البيانات (بتستخدم Android Keystore مباشرة) ---
+-keep class com.localexpense.tracker.data.SecurePassphraseProvider { *; }
+-keep class com.localexpense.tracker.data.DatabaseEncryptionMigration { *; }

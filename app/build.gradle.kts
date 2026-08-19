@@ -125,6 +125,11 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
+    // تشفير قاعدة البيانات المحلية (بيانات مالية حساسة) - كله على الجهاز،
+    // من غير أي اتصال بالإنترنت. راجع SecurePassphraseProvider.kt.
+    implementation("net.zetetic:sqlcipher-android:4.6.1")
+    implementation("androidx.sqlite:sqlite:2.4.0")
+
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
