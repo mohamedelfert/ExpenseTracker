@@ -3,7 +3,6 @@ package com.localexpense.tracker.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.localexpense.tracker.data.AppDatabase
 import com.localexpense.tracker.data.Category
 import com.localexpense.tracker.data.CategoryTotal
 import com.localexpense.tracker.data.Expense
@@ -11,49 +10,40 @@ import com.localexpense.tracker.data.ExpenseRepository
 import com.localexpense.tracker.data.SourceTotal
 import com.localexpense.tracker.parser.SmsImporter
 import com.localexpense.tracker.parser.SmsParser
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 
-sealed interface ImportState {
-    data object Idle : ImportState
-    data object Running : ImportState
-    data class Done(val scanned: Int, val imported: Int) : ImportState
-    data class Error(val message: String) : ImportState
-}
+data class SmsRule(
+    val id: Long = 0,
+    val isEnabled: Boolean = true
+)
 
-sealed interface CleanupState {
-    data object Idle : CleanupState
-    data object Running : CleanupState
-    data class Done(val removed: Int) : CleanupState
-}
-
-/** Result of running the parser against a pasted real message, for the "اختبار رسالة" screen. */
-data class SmsTestResult(
+data class RuleTestResult(
     val matched: Boolean,
     val amount: Double? = null,
     val merchant: String? = null,
-    val bankName: String? = null,
-    val categoryName: String? = null
+    val bankName: String? = null
 )
+
+sealed class ImportState {
+    data object Idle : ImportState()
+    data object Running : ImportState()
+    data class Done(val scanned: Int, val imported: Int) : ImportState()
+}
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val database = AppDatabase.getDatabase(application)
-    private val repository = ExpenseRepository(database.expenseDao(), database.categoryDao())
+    private val repository = ExpenseRepository(application)
 
-    val expenses: StateFlow<List<Expense>> = repository.observeAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val totalsBySource: StateFlow<List<SourceTotal>> = repository.observeTotalsBySource()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val categories: StateFlow<List<Category>> = repository.observeCategories()
+    val expenses: StateFlow<List<Expense>> = repository.observeExpenses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val monthRange: Pair<Long, Long> get() {
@@ -80,8 +70,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val categories: StateFlow<List<Category>> = repository.observeCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _cleanupState = MutableStateFlow<CleanupState>(CleanupState.Idle)
-    val cleanupState: StateFlow<CleanupState> = _cleanupState.asStateFlow()
+    private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
+    val importState: StateFlow<ImportState> = _importState.asStateFlow()
+
+    fun addCategory(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch { repository.addCategory(trimmed) }
+    }
 
     fun deleteCategory(category: Category) {
         viewModelScope.launch { repository.deleteCategory(category) }
@@ -89,10 +85,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addManualExpense(amount: Double, merchant: String, category: String = "عام") {
         viewModelScope.launch {
-            repository.insert(
+            repository.insertExpense(
                 Expense(
                     amount = amount,
-                    merchant = merchant.ifBlank { "مصروف يدوي" },
+                    merchant = merchant,
                     bankName = "يدوي",
                     timestamp = System.currentTimeMillis(),
                     rawBody = "",
@@ -102,26 +98,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun saveExpense(amount: Double, merchant: String, category: String) {
+        addManualExpense(amount, merchant, category)
+    }
+
     fun updateExpense(expense: Expense) {
-        viewModelScope.launch { repository.update(expense) }
+        viewModelScope.launch { repository.updateExpense(expense) }
     }
 
     fun deleteExpense(expense: Expense) {
-        viewModelScope.launch { repository.delete(expense) }
+        viewModelScope.launch { repository.deleteExpense(expense) }
     }
 
-    fun saveRule(rule: SmsRule) {
-        // Hook for SMS rules if configured
-    }
+    fun saveRule(rule: SmsRule) {}
 
-    fun deleteRule(rule: SmsRule) {
-        // Hook for SMS rules if configured
-    }
+    fun deleteRule(rule: SmsRule) {}
 
-    /**
-     * Scans the phone's existing SMS inbox and backfills matching expenses.
-     * Safe to run more than once — messages already imported are skipped (see ExpenseDao.exists).
-     */
     fun importFromInbox() {
         viewModelScope.launch {
             _importState.value = ImportState.Running
@@ -132,16 +124,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * بيمسح المصروفات المكررة اللي اتسجلت قبل إصلاح منطق منع التكرار
-     * (راجع ExpenseRepository.cleanupDuplicates للتفاصيل).
-     */
-    fun cleanupDuplicateExpenses() {
-        viewModelScope.launch {
-            _cleanupState.value = CleanupState.Running
-            val removed = repository.cleanupDuplicates()
-            _cleanupState.value = CleanupState.Done(removed)
-        }
+    fun resetImportState() {
+        _importState.value = ImportState.Idle
     }
 
     fun testRule(sender: String, body: String, rule: SmsRule): RuleTestResult {
