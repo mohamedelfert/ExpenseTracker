@@ -4,7 +4,9 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.localexpense.tracker.data.AppDatabase
-import com.localexpense.tracker.data.ExpenseRepository
+import com.localexpense.tracker.data.insertIfNotDuplicate
+import com.localexpense.tracker.notification.BudgetAlertChecker
+import com.localexpense.tracker.notification.NotificationHelper
 import com.localexpense.tracker.parser.SmsParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,10 +50,21 @@ class ExpenseNotificationListener : NotificationListenerService() {
         val expense = SmsParser.parseSms(sender, fullBody, timestamp)
         
         if (expense != null) {
-            // Save to DB
+            // نفس منطق منع التكرار المستخدم في SmsReceiver - مهم جدًا هنا
+            // لأن نفس العملية البنكية غالبًا بتوصل كإشعار SMS وكإشعار تطبيق
+            // البنك مع بعض، فمن غيره كانت هتتسجل مرتين.
             CoroutineScope(Dispatchers.IO).launch {
-                val repository = ExpenseRepository(applicationContext)
-                repository.insertExpense(expense)
+                val db = AppDatabase.getDatabase(applicationContext)
+                val dao = db.expenseDao()
+
+                if (dao.insertIfNotDuplicate(expense)) {
+                    NotificationHelper.showExpenseCapturedNotification(
+                        applicationContext, expense.amount, expense.merchant, expense.bankName
+                    )
+                    BudgetAlertChecker.checkAndNotify(
+                        applicationContext, dao, db.budgetDao(), expense.categoryName, expense.timestamp
+                    )
+                }
             }
         }
     }

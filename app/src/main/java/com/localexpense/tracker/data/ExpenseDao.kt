@@ -25,6 +25,11 @@ interface ExpenseDao {
     @Query("SELECT categoryName AS categoryName, SUM(amount) AS total FROM expenses WHERE timestamp BETWEEN :startTime AND :endTime GROUP BY categoryName")
     fun observeTotalsByCategoryBetween(startTime: Long, endTime: Long): Flow<List<CategoryTotal>>
 
+    // نفس الفكرة لكن كـ one-shot query (مش Flow) - مستخدم في فحص تنبيهات
+    // الميزانية فور تسجيل مصروف جديد.
+    @Query("SELECT SUM(amount) FROM expenses WHERE categoryName = :categoryName AND timestamp BETWEEN :startTime AND :endTime")
+    suspend fun getCategoryTotalBetween(categoryName: String, startTime: Long, endTime: Long): Double?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: Expense): Long
 

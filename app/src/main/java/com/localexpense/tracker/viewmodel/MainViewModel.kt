@@ -121,16 +121,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             
             for (recurring in recurringList) {
                 if (currentDay >= recurring.dayOfMonth && recurring.lastAddedMonth != currentMonthStr) {
+                    val timestamp = cal.timeInMillis
                     val expense = Expense(
                         amount = recurring.amount,
                         merchant = recurring.merchant,
-                        timestamp = cal.timeInMillis,
+                        timestamp = timestamp,
                         bankName = recurring.bankName,
                         categoryName = recurring.categoryName,
                         rawBody = "Recurring: ${recurring.merchant}"
                     )
                     repository.insertExpense(expense)
                     repository.updateRecurringExpense(recurring.copy(lastAddedMonth = currentMonthStr))
+
+                    withContext(Dispatchers.IO) {
+                        val context = getApplication<Application>()
+                        val db = com.localexpense.tracker.data.AppDatabase.getDatabase(context)
+                        com.localexpense.tracker.notification.BudgetAlertChecker.checkAndNotify(
+                            context, db.expenseDao(), db.budgetDao(), recurring.categoryName, timestamp
+                        )
+                    }
                 }
             }
         }
@@ -155,16 +164,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addManualExpense(amount: Double, merchant: String, category: String = "عام") {
         viewModelScope.launch {
+            val timestamp = System.currentTimeMillis()
             repository.insertExpense(
                 Expense(
                     amount = amount,
                     merchant = merchant,
                     bankName = "يدوي",
-                    timestamp = System.currentTimeMillis(),
+                    timestamp = timestamp,
                     rawBody = "",
                     categoryName = category
                 )
             )
+            // بعد أي إضافة (يدوية أو تلقائية) بنتأكد هل الفئة دي قربت أو
+            // تخطّت الميزانية المحددة ليها الشهر ده، ولو آه بيطلع إشعار محلي.
+            withContext(Dispatchers.IO) {
+                val context = getApplication<Application>()
+                val db = com.localexpense.tracker.data.AppDatabase.getDatabase(context)
+                com.localexpense.tracker.notification.BudgetAlertChecker.checkAndNotify(
+                    context, db.expenseDao(), db.budgetDao(), category, timestamp
+                )
+            }
         }
     }
 

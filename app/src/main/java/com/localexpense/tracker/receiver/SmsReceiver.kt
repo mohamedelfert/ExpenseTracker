@@ -1,15 +1,13 @@
 package com.localexpense.tracker.receiver
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.provider.Telephony
-import androidx.core.app.NotificationCompat
 import com.localexpense.tracker.data.AppDatabase
 import com.localexpense.tracker.data.insertIfNotDuplicate
+import com.localexpense.tracker.notification.BudgetAlertChecker
+import com.localexpense.tracker.notification.NotificationHelper
 import com.localexpense.tracker.parser.SmsParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +34,12 @@ class SmsReceiver : BroadcastReceiver() {
                         val dao = db.expenseDao()
 
                         if (dao.insertIfNotDuplicate(expense)) {
-                            showNotification(context, expense.amount, expense.merchant, expense.bankName)
+                            NotificationHelper.showExpenseCapturedNotification(
+                                context, expense.amount, expense.merchant, expense.bankName
+                            )
+                            BudgetAlertChecker.checkAndNotify(
+                                context, dao, db.budgetDao(), expense.categoryName, expense.timestamp
+                            )
                         }
                     }
                 } catch (e: Exception) {
@@ -46,29 +49,5 @@ class SmsReceiver : BroadcastReceiver() {
                 }
             }
         }
-    }
-
-    private fun showNotification(context: Context, amount: Double, merchant: String, bankName: String) {
-        val channelId = "expense_tracker_channel"
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "إشعارات المصروفات",
-                NotificationManager.IMPORTANCE_HIGH
-            )
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("تم تسجيل مصروف جديد 💳")
-            .setContentText("خصم $amount ج.م - $merchant ($bankName)")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
-
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
     }
 }
