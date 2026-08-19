@@ -7,8 +7,7 @@ import androidx.room.RoomDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import net.sqlcipher.database.SQLiteDatabase as SQLCipherLoader
-import net.sqlcipher.database.SupportFactory
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 @Database(
     entities = [Expense::class, Category::class, SmsRule::class, Budget::class, RecurringExpense::class],
@@ -29,8 +28,12 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                // بيحمّل مكتبة SQLCipher الأصلية (native) - لازم قبل أي استخدام تاني.
-                SQLCipherLoader.loadLibs(context)
+                // بيحمّل مكتبة SQLCipher الأصلية (native) - لازم قبل أي استخدام
+                // تاني، وبالأخص قبل DatabaseEncryptionMigration تحت. حزمة
+                // sqlcipher-android مفيهاش loadLibs() زي الحزمة القديمة،
+                // فالتحميل بيتم يدويًا (System.loadLibrary) - ده مطلوب فعلاً،
+                // مفيش أي كلاس جوه المكتبة بيعمله لوحده.
+                System.loadLibrary("sqlcipher")
 
                 // مفتاح تشفير عشوائي محمي بـ Android Keystore، محلي بالكامل
                 // (راجع SecurePassphraseProvider للتفاصيل).
@@ -41,7 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // على البيانات (راجع DatabaseEncryptionMigration).
                 DatabaseEncryptionMigration.ensureEncrypted(context, passphrase)
 
-                val factory = SupportFactory(passphrase.toByteArray(Charsets.UTF_8))
+                val factory = SupportOpenHelperFactory(passphrase.toByteArray(Charsets.UTF_8))
 
                 val instance = Room.databaseBuilder(
                     context.applicationContext,

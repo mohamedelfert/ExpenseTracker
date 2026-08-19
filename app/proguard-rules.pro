@@ -34,9 +34,10 @@
 -keep class com.localexpense.tracker.parser.** { *; }
 
 # --- SQLCipher (كود native عن طريق JNI + reflection داخلي) ---
--keep class net.sqlcipher.** { *; }
--keep class net.sqlcipher.database.* { *; }
--dontwarn net.sqlcipher.**
+# الباكيدج هنا net.zetetic.database (حزمة sqlcipher-android)، مش net.sqlcipher
+# بتاع الحزمة القديمة - لو اتغيرت الحزمة لازم القواعد دي تتغير معاها.
+-keep class net.zetetic.database.** { *; }
+-dontwarn net.zetetic.database.**
 
 # --- مكوّنات تشفير قاعدة البيانات (بتستخدم Android Keystore مباشرة) ---
 -keep class com.localexpense.tracker.data.SecurePassphraseProvider { *; }

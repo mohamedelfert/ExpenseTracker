@@ -2,7 +2,7 @@ package com.localexpense.tracker.data
 
 import android.content.Context
 import android.util.Log
-import net.sqlcipher.database.SQLiteDatabase
+import net.zetetic.database.sqlcipher.SQLiteDatabase
 import java.io.File
 
 /**
@@ -49,9 +49,16 @@ object DatabaseEncryptionMigration {
 
             // بنفتح القاعدة القديمة (غير المشفّرة) بمكتبة SQLCipher نفسها - بتقدر
             // تفتح قواعد بيانات SQLite عادية زي ما هي تمامًا لما مفيش مفتاح.
-            val plainDb = SQLiteDatabase.openDatabase(dbFile.path, "", null, SQLiteDatabase.OPEN_READWRITE)
+            // الـ null الأخير هو SQLiteDatabaseHook (مش محتاجينه). حزمة
+            // sqlcipher-android مفيهاش overload بأربع باراميترات بس، فلازم
+            // يتبعت صريح.
+            val plainDb = SQLiteDatabase.openDatabase(
+                dbFile.path, "", null, SQLiteDatabase.OPEN_READWRITE, null
+            )
 
-            val originalUserVersion = plainDb.rawQuery("PRAGMA user_version", null).use { cursor ->
+            // الـ cast ضروري: rawQuery عندها overload بـ String[] وتانية بـ
+            // Object[]، و null لوحده بيبقى غامض بين الاتنين.
+            val originalUserVersion = plainDb.rawQuery("PRAGMA user_version", null as Array<String>?).use { cursor ->
                 cursor.moveToFirst()
                 cursor.getInt(0)
             }
@@ -63,7 +70,7 @@ object DatabaseEncryptionMigration {
             plainDb.execSQL(
                 "ATTACH DATABASE '${encryptedTempFile.path}' AS encrypted KEY '$escapedPassphrase'"
             )
-            plainDb.rawQuery("SELECT sqlcipher_export('encrypted')", null).use { it.moveToFirst() }
+            plainDb.rawQuery("SELECT sqlcipher_export('encrypted')", null as Array<String>?).use { it.moveToFirst() }
             // Room بيعتمد على PRAGMA user_version عشان يعرف نسخة الـ schema
             // الحالية - لازم ننسخه يدويًا عشان Room متعملش هجرة/حذف بالغلط.
             plainDb.execSQL("PRAGMA encrypted.user_version = $originalUserVersion")
@@ -98,7 +105,8 @@ object DatabaseEncryptionMigration {
                 dbFile.path,
                 passphrase,
                 null,
-                SQLiteDatabase.OPEN_READONLY
+                SQLiteDatabase.OPEN_READONLY,
+                null
             )
             db.close()
             true

@@ -127,6 +127,12 @@ dependencies {
 
     // تشفير قاعدة البيانات المحلية (بيانات مالية حساسة) - كله على الجهاز،
     // من غير أي اتصال بالإنترنت. راجع SecurePassphraseProvider.kt.
+    // لازم تفضل الحزمة دي بالتحديد (sqlcipher-android) مش الحزمة القديمة
+    // net.zetetic:android-database-sqlcipher: مكتبات الـ native في القديمة
+    // مرصوصة على 4 KB (0x1000)، وجوجل بلاي بترفض أي تطبيق بيستهدف Android 15+
+    // مش داعم صفحات 16 KB. الحزمة دي مرصوصة على 16 KB (0x4000).
+    // باكيدجها net.zetetic.database.sqlcipher (مش net.sqlcipher) وواجهتها
+    // مختلفة - راجع AppDatabase.kt و DatabaseEncryptionMigration.kt.
     implementation("net.zetetic:sqlcipher-android:4.6.1")
     implementation("androidx.sqlite:sqlite:2.4.0")
 
