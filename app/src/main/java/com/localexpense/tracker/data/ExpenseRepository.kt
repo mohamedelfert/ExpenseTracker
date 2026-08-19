@@ -7,6 +7,11 @@ class ExpenseRepository(
     private val categoryDao: CategoryDao
 ) {
 
+    constructor(context: Context) : this(
+        AppDatabase.getDatabase(context).expenseDao(),
+        AppDatabase.getDatabase(context).categoryDao()
+    )
+
     fun observeAll(): Flow<List<Expense>> = expenseDao.observeAll()
 
     fun observeTotalsBySource(): Flow<List<SourceTotal>> = expenseDao.observeTotalsBySource()

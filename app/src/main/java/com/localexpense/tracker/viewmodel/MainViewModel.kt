@@ -14,7 +14,8 @@ import com.localexpense.tracker.parser.SmsParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -65,18 +66,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return start to end
     }
 
+    val monthTotalsBySource: StateFlow<List<SourceTotal>> = repository.observeTotalsBySource()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = monthRange.let { (s, e) ->
         repository.observeTotalsByCategoryBetween(s, e)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
-    val importState: StateFlow<ImportState> = _importState.asStateFlow()
+    val monthTotal: StateFlow<Double> = monthTotalsByCategory
+        .map { list -> list.sumOf { it.total } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val categories: StateFlow<List<Category>> = repository.observeCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _cleanupState = MutableStateFlow<CleanupState>(CleanupState.Idle)
     val cleanupState: StateFlow<CleanupState> = _cleanupState.asStateFlow()
 
-    /** Manual entry from the "إضافة مصروف يدوي" screen. */
-    fun addManualExpense(amount: Double, merchant: String, categoryName: String) {
+    fun deleteCategory(category: Category) {
+        viewModelScope.launch { repository.deleteCategory(category) }
+    }
+
+    fun addManualExpense(amount: Double, merchant: String, category: String = "عام") {
         viewModelScope.launch {
             repository.insert(
                 Expense(
@@ -85,7 +96,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     bankName = "يدوي",
                     timestamp = System.currentTimeMillis(),
                     rawBody = "",
-                    categoryName = categoryName.ifBlank { "عام" }
+                    categoryName = category
                 )
             )
         }
@@ -99,14 +110,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.delete(expense) }
     }
 
-    fun addCategory(name: String) {
-        val trimmed = name.trim()
-        if (trimmed.isBlank()) return
-        viewModelScope.launch { repository.addCategory(trimmed) }
+    fun saveRule(rule: SmsRule) {
+        // Hook for SMS rules if configured
     }
 
-    fun deleteCategory(category: Category) {
-        viewModelScope.launch { repository.deleteCategory(category) }
+    fun deleteRule(rule: SmsRule) {
+        // Hook for SMS rules if configured
     }
 
     /**
@@ -116,12 +125,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun importFromInbox() {
         viewModelScope.launch {
             _importState.value = ImportState.Running
-            try {
-                val (scanned, inserted) = SmsImporter.importAllSms(getApplication())
-                _importState.value = ImportState.Done(scanned, inserted)
-            } catch (e: Exception) {
-                _importState.value = ImportState.Error(e.localizedMessage ?: "حدث خطأ أثناء الاستيراد")
+            val (scanned, imported) = withContext(Dispatchers.IO) {
+                SmsImporter.importAllSms(getApplication())
             }
+            _importState.value = ImportState.Done(scanned = scanned, imported = imported)
         }
     }
 
@@ -137,16 +144,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Used by the "اختبار رسالة" screen: paste a real message, see what would be extracted. */
-    fun testSmsMessage(sender: String, body: String): SmsTestResult {
-        val expense = SmsParser.parseSms(sender, body, System.currentTimeMillis())
-            ?: return SmsTestResult(matched = false)
-        return SmsTestResult(
+    fun testRule(sender: String, body: String, rule: SmsRule): RuleTestResult {
+        val result = SmsParser.parseSms(sender, body, System.currentTimeMillis())
+            ?: return RuleTestResult(matched = false)
+        return RuleTestResult(
             matched = true,
-            amount = expense.amount,
-            merchant = expense.merchant,
-            bankName = expense.bankName,
-            categoryName = expense.categoryName
+            amount = result.amount,
+            merchant = result.merchant,
+            bankName = result.bankName
         )
     }
 }
