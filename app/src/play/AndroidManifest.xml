@@ -21,7 +21,7 @@
         <receiver
             android:name=".receiver.SmsReceiver"
             android:enabled="false"
-            tools:node="merge" />
+            tools:replace="android:enabled" />
     </application>
 
 </manifest>
