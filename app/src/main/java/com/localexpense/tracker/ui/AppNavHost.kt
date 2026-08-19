@@ -11,9 +11,11 @@ import com.localexpense.tracker.viewmodel.MainViewModel
 
 object Routes {
     const val HOME = "home"
-    const val TEST_SMS = "test_sms"
+    const val RULES = "rules"
+    const val RULE_EDIT = "rule_edit/{ruleId}"
     const val ADD_EXPENSE = "add_expense"
     const val DASHBOARD = "dashboard"
+    fun ruleEdit(id: Long) = "rule_edit/$id"
 }
 
 @Composable
@@ -32,7 +34,7 @@ fun AppNavHost(
                 smsPermissionGranted = smsPermissionGranted,
                 onRequestSmsPermission = onRequestSmsPermission,
                 onOpenAppSettings = onOpenAppSettings,
-                onOpenTestSms = { navController.navigate(Routes.TEST_SMS) },
+                onOpenRules = { navController.navigate(Routes.RULES) },
                 onOpenAddExpense = { navController.navigate(Routes.ADD_EXPENSE) },
                 onOpenDashboard = { navController.navigate(Routes.DASHBOARD) }
             )
@@ -45,20 +47,30 @@ fun AppNavHost(
             )
         }
 
-        composable(Routes.TEST_SMS) {
-            TestSmsScreen(
+        composable(Routes.RULES) {
+            RulesScreen(
                 viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenRule = { id -> navController.navigate(Routes.ruleEdit(id)) }
+            )
+        }
+
+        composable(Routes.RULE_EDIT) { backStackEntry ->
+            val ruleId = backStackEntry.arguments?.getString("ruleId")?.toLongOrNull() ?: -1L
+            RuleEditScreen(
+                viewModel = viewModel,
+                ruleId = ruleId,
                 onBack = { navController.popBackStack() }
             )
         }
 
         composable(Routes.ADD_EXPENSE) {
-            val categories by viewModel.categories.collectAsStateWithLifecycle()
+            val categories by viewModel.categories.collectAsStateWithLifecycle(initialValue = emptyList())
 
             AddExpenseScreen(
                 categories = categories,
-                onSaveExpense = { amount, merchant, categoryName ->
-                    viewModel.addManualExpense(amount, merchant, categoryName)
+                onSaveExpense = { amount, merchant, category ->
+                    viewModel.saveExpense(amount, merchant, category)
                 },
                 onBack = { navController.popBackStack() }
             )

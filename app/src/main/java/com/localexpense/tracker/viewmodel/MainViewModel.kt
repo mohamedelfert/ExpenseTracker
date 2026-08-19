@@ -3,50 +3,45 @@ package com.localexpense.tracker.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.localexpense.tracker.data.AppDatabase
 import com.localexpense.tracker.data.Category
 import com.localexpense.tracker.data.CategoryTotal
 import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.ExpenseRepository
+import com.localexpense.tracker.data.SmsRule
 import com.localexpense.tracker.data.SourceTotal
 import com.localexpense.tracker.parser.SmsImporter
 import com.localexpense.tracker.parser.SmsParser
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 
-sealed interface ImportState {
-    data object Idle : ImportState
-    data object Running : ImportState
-    data class Done(val scanned: Int, val imported: Int) : ImportState
-    data class Error(val message: String) : ImportState
-}
-
-/** Result of running the parser against a pasted real message, for the "اختبار رسالة" screen. */
-data class SmsTestResult(
+data class RuleTestResult(
     val matched: Boolean,
     val amount: Double? = null,
     val merchant: String? = null,
-    val bankName: String? = null,
-    val categoryName: String? = null
+    val bankName: String? = null
 )
+
+sealed class ImportState {
+    data object Idle : ImportState()
+    data object Running : ImportState()
+    data class Done(val scanned: Int, val imported: Int) : ImportState()
+}
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val database = AppDatabase.getDatabase(application)
-    private val repository = ExpenseRepository(database.expenseDao(), database.categoryDao())
+    private val repository = ExpenseRepository(application)
 
-    val expenses: StateFlow<List<Expense>> = repository.observeAll()
+    val expenses: StateFlow<List<Expense>> = repository.observeExpenses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val totalsBySource: StateFlow<List<SourceTotal>> = repository.observeTotalsBySource()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val categories: StateFlow<List<Category>> = repository.observeCategories()
+    val rules: StateFlow<List<SmsRule>> = repository.observeRules()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val monthRange: Pair<Long, Long> get() {
@@ -59,36 +54,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return start to end
     }
 
-    val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = monthRange.let { (s, e) ->
-        repository.observeTotalsByCategoryBetween(s, e)
+    val monthTotal: StateFlow<Double> = monthRange.let { (s, e) ->
+        repository.observeTotalBetween(s, e)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val monthTotalsBySource: StateFlow<List<SourceTotal>> = monthRange.let { (s, e) ->
+        repository.observeTotalsBySource(s, e)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
-    val importState: StateFlow<ImportState> = _importState.asStateFlow()
+    val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = monthRange.let { (s, e) ->
+        repository.observeTotalsByCategory(s, e)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Manual entry from the "إضافة مصروف يدوي" screen. */
-    fun addManualExpense(amount: Double, merchant: String, categoryName: String) {
-        viewModelScope.launch {
-            repository.insert(
-                Expense(
-                    amount = amount,
-                    merchant = merchant.ifBlank { "مصروف يدوي" },
-                    bankName = "يدوي",
-                    timestamp = System.currentTimeMillis(),
-                    rawBody = "",
-                    categoryName = categoryName.ifBlank { "عام" }
-                )
-            )
-        }
-    }
-
-    fun updateExpense(expense: Expense) {
-        viewModelScope.launch { repository.update(expense) }
-    }
-
-    fun deleteExpense(expense: Expense) {
-        viewModelScope.launch { repository.delete(expense) }
-    }
+    val categories: StateFlow<List<Category>> = repository.observeCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun addCategory(name: String) {
         val trimmed = name.trim()
@@ -100,32 +79,72 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteCategory(category) }
     }
 
-    /**
-     * Scans the phone's existing SMS inbox and backfills matching expenses.
-     * Safe to run more than once — messages already imported are skipped (see ExpenseDao.exists).
-     */
-    fun importFromInbox() {
+    fun addManualExpense(amount: Double, merchant: String, category: String) {
         viewModelScope.launch {
-            _importState.value = ImportState.Running
-            try {
-                val (scanned, inserted) = SmsImporter.importAllSms(getApplication())
-                _importState.value = ImportState.Done(scanned, inserted)
-            } catch (e: Exception) {
-                _importState.value = ImportState.Error(e.localizedMessage ?: "حدث خطأ أثناء الاستيراد")
-            }
+            repository.addExpense(
+                Expense(
+                    amount = amount,
+                    merchant = merchant,
+                    source = "يدوي",
+                    timestampMillis = System.currentTimeMillis(),
+                    rawMessage = "",
+                    category = category,
+                    isConfirmed = true
+                )
+            )
         }
     }
 
-    /** Used by the "اختبار رسالة" screen: paste a real message, see what would be extracted. */
-    fun testSmsMessage(sender: String, body: String): SmsTestResult {
-        val expense = SmsParser.parseSms(sender, body, System.currentTimeMillis())
-            ?: return SmsTestResult(matched = false)
-        return SmsTestResult(
+    fun saveExpense(amount: Double, merchant: String, category: String) {
+        addManualExpense(amount, merchant, category)
+    }
+
+    fun updateExpense(expense: Expense) {
+        viewModelScope.launch { repository.updateExpense(expense) }
+    }
+
+    fun deleteExpense(expense: Expense) {
+        viewModelScope.launch { repository.deleteExpense(expense) }
+    }
+
+    fun saveRule(rule: SmsRule) {
+        viewModelScope.launch { repository.saveRule(rule) }
+    }
+
+    fun deleteRule(rule: SmsRule) {
+        viewModelScope.launch { repository.deleteRule(rule) }
+    }
+
+    private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
+    val importState: StateFlow<ImportState> = _importState
+
+    fun importFromInbox() {
+        viewModelScope.launch {
+            _importState.value = ImportState.Running
+            val currentRules = rules.first().filter { it.isEnabled }
+            val existingRaw = expenses.first().map { it.rawMessage }.toSet()
+
+            val (result, found) = withContext(Dispatchers.IO) {
+                SmsImporter.scanInbox(getApplication(), currentRules, existingRaw)
+            }
+
+            found.forEach { repository.addExpense(it) }
+            _importState.value = ImportState.Done(scanned = result.scanned, imported = result.imported)
+        }
+    }
+
+    fun resetImportState() {
+        _importState.value = ImportState.Idle
+    }
+
+    fun testRule(sender: String, body: String, rule: SmsRule): RuleTestResult {
+        val result = SmsParser.parse(sender, body, listOf(rule))
+            ?: return RuleTestResult(matched = false)
+        return RuleTestResult(
             matched = true,
-            amount = expense.amount,
-            merchant = expense.merchant,
-            bankName = expense.bankName,
-            categoryName = expense.categoryName
+            amount = result.amount,
+            merchant = result.merchant,
+            bankName = result.source
         )
     }
 }
