@@ -9,6 +9,9 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
     fun observeAll(): Flow<List<Expense>>
 
+    @Query("SELECT * FROM expenses ORDER BY timestamp ASC")
+    suspend fun getAllOnce(): List<Expense>
+
     @Query("SELECT SUM(amount) FROM expenses WHERE timestamp BETWEEN :startTime AND :endTime")
     fun observeTotalBetween(startTime: Long, endTime: Long): Flow<Double?>
 
@@ -34,6 +37,60 @@ interface ExpenseDao {
     @Query("SELECT COUNT(*) FROM expenses WHERE rawBody = :body AND timestamp = :timestamp")
     suspend fun exists(body: String, timestamp: Long): Int
 
+    // فحص تكرار تقريبي: بيمسك نفس العملية لو اتسجلت مرتين بفارق توقيت بسيط.
+    // مقصودًا من غير شرط تطابق اسم الجهة (merchant)، لأن بعض البنوك بتبعت
+    // أكتر من رسالة للعملية الواحدة (رسالة تنبيه + رسالة تأكيد، أو إعادة
+    // إرسال من الشبكة) وممكن يستخرج الـ Parser اسم جهة مختلف شوية من كل
+    // رسالة حتى لو العملية واحدة فعليًا. المبلغ + البنك + التوقيت القريب
+    // كفاية كإشارة إن دي نفس العملية.
+    @Query(
+        """
+        SELECT COUNT(*) FROM expenses
+        WHERE amount = :amount
+        AND bankName = :bankName
+        AND timestamp BETWEEN :startTime AND :endTime
+        """
+    )
+    suspend fun existsSimilar(
+        amount: Double,
+        bankName: String,
+        startTime: Long,
+        endTime: Long
+    ): Int
+
     @Query("DELETE FROM expenses")
     suspend fun deleteAll()
+}
+
+/**
+ * نقطة دخول موحّدة لإدراج مصروف مستخرج من رسالة SMS، مستخدمة من كل من
+ * SmsReceiver (الالتقاط اللحظي) و SmsImporter (الاستيراد اليدوي من صندوق
+ * الرسائل)، عشان منطق منع التكرار يفضل مركزي ومتسق بين المسارين.
+ *
+ * سبب وجود فحصين:
+ * 1) exists(): تطابق تام على النص والتوقيت (بالملي ثانية) — بيلقط لو
+ *    نفس الاستيراد اليدوي اتنفذ مرتين بالظبط.
+ * 2) existsSimilar(): تطابق على المبلغ + البنك في نافذة زمنية
+ *    قصيرة — بيلقط الحالة الأشيع: نفس الرسالة الحقيقية بتوصل مرة عن طريق
+ *    البرودكاست اللحظي (SmsReceiver.timestampMillis) ومرة عن طريق قراءة
+ *    عمود DATE من مزوّد بيانات الرسائل (SmsImporter)، واللي ممكن يختلف
+ *    عن بعضه شوية حتى لو الرسالة واحدة فعليًا.
+ */
+suspend fun ExpenseDao.insertIfNotDuplicate(
+    expense: Expense,
+    dedupWindowMillis: Long = 10 * 60 * 1000L // 10 دقايق
+): Boolean {
+    val exactDuplicate = exists(expense.rawBody, expense.timestamp) > 0
+    if (exactDuplicate) return false
+
+    val similarDuplicate = existsSimilar(
+        amount = expense.amount,
+        bankName = expense.bankName,
+        startTime = expense.timestamp - dedupWindowMillis,
+        endTime = expense.timestamp + dedupWindowMillis
+    ) > 0
+    if (similarDuplicate) return false
+
+    insertExpense(expense)
+    return true
 }

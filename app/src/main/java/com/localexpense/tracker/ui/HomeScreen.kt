@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.data.Expense
+import com.localexpense.tracker.viewmodel.CleanupState
 import com.localexpense.tracker.viewmodel.ImportState
 import com.localexpense.tracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
@@ -43,8 +44,10 @@ fun HomeScreen(
 ) {
     val expenses by viewModel.expenses.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
+    val cleanupState by viewModel.cleanupState.collectAsStateWithLifecycle()
 
     var showDisclosureDialog by remember { mutableStateOf(false) }
+    var showCleanupConfirmDialog by remember { mutableStateOf(false) }
 
     // حالات فتح وإغلاق السنوات والشهور
     val expandedYears = remember { mutableStateMapOf<String, Boolean>() }
@@ -66,6 +69,18 @@ fun HomeScreen(
             is ImportState.Running -> "جاري استيراد وقراءة الرسائل..."
             is ImportState.Done -> "تم فحص ${state.scanned} رسالة واستيراد ${state.imported} مصروف جديد"
             is ImportState.Error -> state.message
+            else -> null
+        }
+    }
+
+    val cleanupStatusMessage = remember(cleanupState) {
+        when (val state = cleanupState) {
+            is CleanupState.Running -> "جاري البحث عن المصروفات المكررة..."
+            is CleanupState.Done -> if (state.removed > 0) {
+                "تم حذف ${state.removed} مصروف مكرر"
+            } else {
+                "مفيش مصروفات مكررة"
+            }
             else -> null
         }
     }
@@ -93,6 +108,34 @@ fun HomeScreen(
                         monthExpenses.groupBy { it.bankName }
                     }
             }
+    }
+
+    if (showCleanupConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showCleanupConfirmDialog = false },
+            title = { Text("تنظيف المصروفات المكررة") },
+            text = {
+                Text(
+                    "هيتم البحث عن مصروفات بنفس المبلغ والبنك حصلت خلال سلسلة " +
+                        "فروق زمنية قصيرة متتالية (حتى لو النص أو اسم الجهة مختلف شوية)، " +
+                        "وحذف النسخ الزيادة والاحتفاظ بأقدم واحدة في كل مجموعة فقط. " +
+                        "الإجراء ده مينفعش يتراجع فيه."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCleanupConfirmDialog = false
+                    viewModel.cleanupDuplicateExpenses()
+                }) {
+                    Text("تنظيف الآن", color = Color(0xFFF57C00))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCleanupConfirmDialog = false }) {
+                    Text("إلغاء")
+                }
+            }
+        )
     }
 
     if (showDisclosureDialog) {
@@ -195,6 +238,38 @@ fun HomeScreen(
                     Text(
                         text = importStatusMessage,
                         color = if (importState is ImportState.Error) Color(0xFFFFAB91) else Color(0xFFA5D6A7),
+                        modifier = Modifier.padding(12.dp),
+                        fontSize = 13.sp
+                    )
+                }
+            }
+
+            TextButton(
+                onClick = { showCleanupConfirmDialog = true },
+                enabled = cleanupState !is CleanupState.Running,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (cleanupState is CleanupState.Running) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = Color(0xFFF57C00),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text("تنظيف المصروفات المكررة", color = Color(0xFFF57C00), fontSize = 13.sp)
+            }
+
+            if (!cleanupStatusMessage.isNullOrEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                ) {
+                    Text(
+                        text = cleanupStatusMessage,
+                        color = Color(0xFFFFCC80),
                         modifier = Modifier.padding(12.dp),
                         fontSize = 13.sp
                     )

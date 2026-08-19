@@ -3,6 +3,7 @@ package com.localexpense.tracker.parser
 import android.content.Context
 import android.provider.Telephony
 import com.localexpense.tracker.data.AppDatabase
+import com.localexpense.tracker.data.insertIfNotDuplicate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -37,8 +38,7 @@ object SmsImporter {
 
                 val expense = SmsParser.parseSms(sender, body, timestamp)
                 if (expense != null) {
-                    if (dao.exists(body, timestamp) == 0) {
-                        dao.insertExpense(expense)
+                    if (dao.insertIfNotDuplicate(expense)) {
                         newAdded++
                     }
                 }

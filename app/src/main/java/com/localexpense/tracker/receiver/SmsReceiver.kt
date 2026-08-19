@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.Telephony
 import androidx.core.app.NotificationCompat
 import com.localexpense.tracker.data.AppDatabase
+import com.localexpense.tracker.data.insertIfNotDuplicate
 import com.localexpense.tracker.parser.SmsParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,8 +35,7 @@ class SmsReceiver : BroadcastReceiver() {
                         val db = AppDatabase.getDatabase(context)
                         val dao = db.expenseDao()
 
-                        if (dao.exists(expense.rawBody, expense.timestamp) == 0) {
-                            dao.insertExpense(expense)
+                        if (dao.insertIfNotDuplicate(expense)) {
                             showNotification(context, expense.amount, expense.merchant, expense.bankName)
                         }
                     }
