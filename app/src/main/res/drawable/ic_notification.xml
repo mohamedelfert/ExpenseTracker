@@ -1,0 +1,16 @@
+<!--
+    أيقونة شريط الإشعارات: لازم تكون قناع أبيض على خلفية شفافة، لأن أندرويد
+    بيلوّنها بنفسه ويرمي أي ألوان جواها - فمينفعش نستخدم أيقونة التطبيق
+    الملوّنة هنا. نفس شكل المحفظة بس مبسّطة: العملة متعمولة كفتحة
+    (fillType=evenOdd) بدل لون تاني، وشكل المشبك اتشال لأنه بيتلخبط في 24dp.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M5,5 h14 a3,3 0 0 1 3,3 v8 a3,3 0 0 1 -3,3 h-14 a3,3 0 0 1 -3,-3 v-8 a3,3 0 0 1 3,-3 z M17.4,13 m-2.6,0 a2.6,2.6 0 1 0 5.2,0 a2.6,2.6 0 1 0 -5.2,0" />
+</vector>

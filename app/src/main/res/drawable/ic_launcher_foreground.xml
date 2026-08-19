@@ -1,12 +1,24 @@
+<!--
+    أيقونة التطبيق (الطبقة الأمامية للـ adaptive icon): محفظة بيضاء ومشبك
+    أخضر جواه عملة. كل الرسم محصور جوه دايرة الأمان (66dp في المنتصف) عشان
+    ميتقطعش مع أشكال الـ mask المختلفة، والمشبك سايب هامش أبيض على اليمين
+    عشان ميندمجش مع لون الخلفية ويبان كأن المحفظة مقطوعة.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- جسم المحفظة -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M30,38 h48 a8,8 0 0 1 8,8 v24 a8,8 0 0 1 -8,8 h-48 a8,8 0 0 1 -8,-8 v-24 a8,8 0 0 1 8,-8 z" />
+        android:pathData="M36,34 h36 a8,8 0 0 1 8,8 v24 a8,8 0 0 1 -8,8 h-36 a8,8 0 0 1 -8,-8 v-24 a8,8 0 0 1 8,-8 z" />
+    <!-- المشبك -->
     <path
         android:fillColor="#0F6E56"
-        android:pathData="M66,58 m-8,0 a8,8 0 1 0 16,0 a8,8 0 1 0 -16,0" />
+        android:pathData="M66,49 h2 a8,8 0 0 1 0,16 h-2 a8,8 0 0 1 0,-16 z" />
+    <!-- العملة جوه المشبك -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M67,57 m-3.5,0 a3.5,3.5 0 1 0 7,0 a3.5,3.5 0 1 0 -7,0" />
 </vector>

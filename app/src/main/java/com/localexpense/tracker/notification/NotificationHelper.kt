@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.localexpense.tracker.R
 
 /**
  * نقطة موحّدة لكل إشعارات التطبيق (بدل ما كل مكان يعرّف الـ channel بتاعه
@@ -57,7 +58,7 @@ object NotificationHelper {
         ensureChannels(context)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_EXPENSE_CAPTURED)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("تم تسجيل مصروف جديد 💳")
             .setContentText("خصم $amount ج.م - $merchant ($bankName)")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -85,7 +86,7 @@ object NotificationHelper {
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_BUDGET_ALERT)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
