@@ -35,7 +35,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.localexpense.tracker.money.formatMinor
 import com.localexpense.tracker.util.dayKey
 import com.localexpense.tracker.util.monthLabel
@@ -53,9 +52,12 @@ import java.util.Locale
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarScreen(onBack: () -> Unit, onOpenTransaction: (Long) -> Unit) {
-    val finance: FinanceViewModel = viewModel()
-    val plans: PlansViewModel = viewModel()
+fun CalendarScreen(
+    finance: FinanceViewModel,
+    plans: PlansViewModel,
+    onBack: () -> Unit,
+    onOpenTransaction: (Long) -> Unit
+) {
     val daily by finance.dailyTotals.collectAsStateWithLifecycle()
     val selectedDay by plans.selectedDay.collectAsStateWithLifecycle()
     val dayTransactions by plans.dayTransactions.collectAsStateWithLifecycle()

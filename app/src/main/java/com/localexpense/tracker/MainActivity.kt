@@ -20,7 +20,9 @@ import com.localexpense.tracker.security.AppLock
 import com.localexpense.tracker.ui.AppNavHost
 import com.localexpense.tracker.ui.LockScreen
 import com.localexpense.tracker.ui.theme.ExpenseTrackerTheme
+import com.localexpense.tracker.viewmodel.FinanceViewModel
 import com.localexpense.tracker.viewmodel.MainViewModel
+import com.localexpense.tracker.viewmodel.PlansViewModel
 
 /**
  * الأذونات الحساسة المطلوبة (نسخة "direct" فقط):
@@ -95,7 +97,11 @@ class MainActivity : FragmentActivity() {
 
         setContent {
             ExpenseTrackerTheme {
+                // كل الـ ViewModels على مستوى الـ Activity: كده محرّك
+                // التحليلات نسخة واحدة لكل الشاشات (راجع التعليق في AppNavHost).
                 val viewModel: MainViewModel = viewModel()
+                val finance: FinanceViewModel = viewModel()
+                val plans: PlansViewModel = viewModel()
                 val navController = rememberNavController()
                 val smsGranted by smsPermissionGranted
                 val notifGranted by notificationAccessGranted
@@ -117,6 +123,8 @@ class MainActivity : FragmentActivity() {
                     AppNavHost(
                         navController = navController,
                         viewModel = viewModel,
+                        finance = finance,
+                        plans = plans,
                         smsPermissionGranted = smsGranted,
                         notificationAccessGranted = notifGranted,
                         onRequestSmsPermission = {

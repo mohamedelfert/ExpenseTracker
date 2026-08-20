@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.localexpense.tracker.domain.InsightLevel
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 
@@ -38,8 +37,7 @@ import com.localexpense.tracker.viewmodel.FinanceViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InsightsScreen(onBack: () -> Unit) {
-    val finance: FinanceViewModel = viewModel()
+fun InsightsScreen(finance: FinanceViewModel, onBack: () -> Unit) {
     val insights by finance.insights.collectAsStateWithLifecycle()
 
     Scaffold(

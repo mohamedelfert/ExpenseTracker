@@ -39,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.localexpense.tracker.data.Installment
 import com.localexpense.tracker.domain.firstDueDateForDayOfMonth
 import com.localexpense.tracker.money.formatMinor
@@ -57,8 +56,7 @@ import java.util.Locale
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InstallmentsScreen(onBack: () -> Unit) {
-    val plans: PlansViewModel = viewModel()
+fun InstallmentsScreen(plans: PlansViewModel, onBack: () -> Unit) {
     val installments by plans.installments.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Installment?>(null) }
     var showEditor by remember { mutableStateOf(false) }

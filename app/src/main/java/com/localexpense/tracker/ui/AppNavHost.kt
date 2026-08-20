@@ -9,7 +9,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.localexpense.tracker.viewmodel.FinanceViewModel
 import com.localexpense.tracker.viewmodel.MainViewModel
+import com.localexpense.tracker.viewmodel.PlansViewModel
 
 object Routes {
     const val HOME = "home"
@@ -34,10 +36,19 @@ object Routes {
     const val ASSISTANT = "assistant"
 }
 
+/**
+ * كل الـ ViewModels بتتعمل مرة واحدة على مستوى الـ Activity وبتتمرّر لتحت.
+ * viewModel() جوه شاشة داخل NavHost بيربط الـ ViewModel بـ NavBackStackEntry
+ * بتاع الشاشة، يعني كل شاشة كانت هتاخد نسخة منفصلة من محرّك التحليلات وتحسب
+ * أرقام الشهر من الأول — وممكن شاشة تعرض رقم مختلف عن شاشة تانية. التمرير من
+ * فوق بيضمن مصدر واحد للأرقام.
+ */
 @Composable
 fun AppNavHost(
     navController: NavHostController = rememberNavController(),
     viewModel: MainViewModel,
+    finance: FinanceViewModel,
+    plans: PlansViewModel,
     smsPermissionGranted: Boolean,
     notificationAccessGranted: Boolean,
     onRequestSmsPermission: () -> Unit,
@@ -69,6 +80,7 @@ fun AppNavHost(
         composable(Routes.DASHBOARD) {
             DashboardScreen(
                 viewModel = viewModel,
+                finance = finance,
                 onBack = { navController.popBackStack() },
                 onOpenTransactions = { navController.navigate(Routes.TRANSACTIONS) },
                 onOpenBudgets = { navController.navigate(Routes.BUDGETS) },
@@ -100,15 +112,15 @@ fun AppNavHost(
         }
 
         composable(Routes.BUDGETS) {
-            BudgetsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            BudgetsScreen(viewModel = viewModel, finance = finance, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.COMPARE) {
-            CompareMonthsScreen(onBack = { navController.popBackStack() })
+            CompareMonthsScreen(finance = finance, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.INSIGHTS) {
-            InsightsScreen(onBack = { navController.popBackStack() })
+            InsightsScreen(finance = finance, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.ACCOUNTS) {
@@ -140,26 +152,28 @@ fun AppNavHost(
         }
 
         composable(Routes.RECURRING) {
-            PlansScreen(onBack = { navController.popBackStack() })
+            PlansScreen(plans = plans, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.INSTALLMENTS) {
-            InstallmentsScreen(onBack = { navController.popBackStack() })
+            InstallmentsScreen(plans = plans, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.CALENDAR) {
             CalendarScreen(
+                finance = finance,
+                plans = plans,
                 onBack = { navController.popBackStack() },
                 onOpenTransaction = { id -> navController.navigate("${Routes.TRANSACTION_DETAIL}/$id") }
             )
         }
 
         composable(Routes.REPORTS) {
-            ReportsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            ReportsScreen(viewModel = viewModel, finance = finance, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.ASSISTANT) {
-            AssistantScreen(onBack = { navController.popBackStack() })
+            AssistantScreen(finance = finance, onBack = { navController.popBackStack() })
         }
 
         composable(Routes.SETTINGS) {

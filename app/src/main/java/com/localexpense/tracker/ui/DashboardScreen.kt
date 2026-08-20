@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.localexpense.tracker.domain.Insight
 import com.localexpense.tracker.domain.InsightLevel
 import com.localexpense.tracker.domain.UpcomingKind
@@ -52,6 +51,7 @@ import java.util.Locale
 @Composable
 fun DashboardScreen(
     viewModel: MainViewModel,
+    finance: FinanceViewModel,
     onBack: () -> Unit,
     onOpenTransactions: () -> Unit = {},
     onOpenBudgets: () -> Unit = {},
@@ -61,7 +61,6 @@ fun DashboardScreen(
     onOpenAssistant: () -> Unit = {},
     onOpenTransaction: (Long) -> Unit = {}
 ) {
-    val finance: FinanceViewModel = viewModel()
     val context by finance.financialContext.collectAsStateWithLifecycle()
     val insights by finance.insights.collectAsStateWithLifecycle()
     val daily by finance.dailyTotals.collectAsStateWithLifecycle()
