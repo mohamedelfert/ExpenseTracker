@@ -112,6 +112,40 @@ class ExpenseRepository(
 
     suspend fun insertExpense(expense: Expense): Long = insertTransaction(expense)
 
+    /**
+     * نقطة الدخول الوحيدة للحركات الملتقطة من رسالة SMS أو إشعار بنك.
+     *
+     * بتعمل تلات حاجات مع بعض عشان ما تتفرقش بين المسارات: فحص التكرار
+     * (مرجع البنك، ثم بصمة النص، ثم النص+التوقيت، ثم المبلغ+البنك في نافذة
+     * قصيرة)، تسجيل الجهة، وتطبيق محرّك التصنيف (قواعد الجهات لها الأولوية
+     * على الكلمات المفتاحية اللي الـ parser طلّعها).
+     *
+     * بترجّع الحركة بشكلها النهائي (بعد التصنيف) لو اتسجلت، و null لو
+     * اتجاهلت كتكرار — اللي بينادي محتاج الفئة النهائية عشان يفحص تنبيهات
+     * الميزانية على الفئة الصح، مش على فئة الـ parser المبدئية.
+     */
+    suspend fun captureTransaction(
+        expense: Expense,
+        dedupWindowMillis: Long = 10 * 60 * 1000L
+    ): Expense? {
+        val merchant = upsertMerchant(expense.merchant)
+        val category = categorize(
+            merchant = expense.merchant,
+            rules = merchantRuleDao.getEnabled(),
+            explicitMerchantCategory = merchant?.categoryName?.takeIf { it.isNotBlank() },
+            keywordCategory = expense.categoryName
+        ).categoryName
+        val now = System.currentTimeMillis()
+
+        val enriched = expense.copy(
+            categoryName = category,
+            merchantId = merchant?.id,
+            createdAt = now,
+            updatedAt = now
+        )
+        return if (expenseDao.insertIfNotDuplicate(enriched, dedupWindowMillis)) enriched else null
+    }
+
     suspend fun update(expense: Expense) = updateExpense(expense)
 
     suspend fun updateExpense(expense: Expense) =
