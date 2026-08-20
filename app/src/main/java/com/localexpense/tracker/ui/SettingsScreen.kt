@@ -79,6 +79,7 @@ fun SettingsScreen(
     var anomalyMultiplier by remember { mutableStateOf(viewModel.settings.anomalyMultiplier) }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
     var showRestrictedHelp by remember { mutableStateOf(false) }
+    var biometricError by remember { mutableStateOf<String?>(null) }
     var crashReport by remember { mutableStateOf(CrashLog.read(context)) }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -185,6 +186,16 @@ fun SettingsScreen(
                 }
             }
             if (pinSet) {
+                biometricError?.let { message ->
+                    item {
+                        Text(
+                            message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
                 item {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -192,9 +203,11 @@ fun SettingsScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text("البصمة / الوجه", style = MaterialTheme.typography.bodyMedium)
-                            if (!BiometricAuth.isAvailable(context)) {
+                            // السبب الحقيقي من النظام (مفيش بصمة مسجّلة، مفيش
+                            // قارئ، إصدار مش مدعوم...) بدل "غير متاحة" المبهمة.
+                            BiometricAuth.unavailableReason(context)?.let { reason ->
                                 Text(
-                                    "غير متاحة على الجهاز ده",
+                                    reason,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -203,9 +216,20 @@ fun SettingsScreen(
                         Switch(
                             checked = biometric,
                             enabled = BiometricAuth.isAvailable(context),
-                            onCheckedChange = {
-                                biometric = it
-                                AppLock.setBiometricEnabled(context, it)
+                            onCheckedChange = { enabled ->
+                                biometric = enabled
+                                AppLock.setBiometricEnabled(context, enabled)
+                                // تجربة فورية: لو البصمة مش هتشتغل، المستخدم
+                                // يعرف دلوقتي مش أول مرة يقفل التطبيق.
+                                if (enabled) {
+                                    BiometricAuth.findActivity(context)?.let { activity ->
+                                        BiometricAuth.prompt(
+                                            activity = activity,
+                                            onSuccess = {},
+                                            onFailure = { message -> biometricError = message }
+                                        )
+                                    }
+                                }
                             }
                         )
                     }
