@@ -60,7 +60,10 @@ object SmsImporter {
                 val body = c.getString(bodyIndex) ?: ""
                 val timestamp = c.getLong(dateIndex)
 
-                val expense = SmsParser.parseSms(sender, body, timestamp, customRules)
+                val expense = SmsParser.parseSms(
+                    sender, body, timestamp, customRules,
+                    source = com.localexpense.tracker.data.TransactionSource.IMPORT
+                )
                 if (expense != null) {
                     if (dao.insertIfNotDuplicate(expense)) {
                         newAdded++

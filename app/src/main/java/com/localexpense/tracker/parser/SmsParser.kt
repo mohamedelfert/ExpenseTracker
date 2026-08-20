@@ -2,7 +2,10 @@ package com.localexpense.tracker.parser
 
 import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.SmsRule
+import com.localexpense.tracker.data.TransactionSource
+import com.localexpense.tracker.data.TransactionType
 import com.localexpense.tracker.util.parseAmountMinor
+import com.localexpense.tracker.util.rawMessageHash
 
 object SmsParser {
 
@@ -12,26 +15,21 @@ object SmsParser {
      * قاعدة منها مطابقة (المرسل + كلمة الخصم + استخراج مبلغ ناجح) بتاخد
      * الأولوية على المنطق الثابت تحت. ده بيسمح للمستخدم إنه يضيف/يظبط بنك
      * جديد أو صيغة رسالة معينة من غير ما يحتاج يعدّل الكود.
+     *
+     * [source] بيتحدد من اللي بينادي: SMS للبرودكاست، NOTIFICATION لإشعارات
+     * تطبيقات البنوك، IMPORT للاستيراد اليدوي من صندوق الوارد.
      */
     fun parseSms(
         sender: String,
         body: String,
         timestamp: Long,
-        customRules: List<SmsRule> = emptyList()
+        customRules: List<SmsRule> = emptyList(),
+        source: TransactionSource = TransactionSource.SMS
     ): Expense? {
-        parseWithCustomRules(sender, body, timestamp, customRules)?.let { return it }
+        parseWithCustomRules(sender, body, timestamp, customRules, source)?.let { return it }
 
-        // 1. التحقق من أن الرسالة تتضمن عملية خصم أو سحب أو شراء أو تحويل صادرة
-        val isDebit = body.contains("خصم", true) ||
-                body.contains("شراء", true) ||
-                body.contains("سحب", true) ||
-                body.contains("تحويل", true) ||
-                body.contains("Debited", true) ||
-                body.contains("Purchase", true) ||
-                body.contains("Paid", true) ||
-                body.contains("Deducted", true)
-
-        if (!isDebit) return null
+        // 1. نوع العملية: خصم (مصروف)، إيداع (دخل)، أو استرداد.
+        val type = detectType(body) ?: return null
 
         // 2. استخراج المبلغ (دعم العملة المصرية EGP, LE, ج.م)
         val amountRegex = Regex("""(?:مبلغ|EGP|LE|LE\.|ج\.م|جم)\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
@@ -49,19 +47,60 @@ object SmsParser {
 
         return Expense(
             amountMinor = amountMinor,
+            type = type,
             merchant = merchant,
             bankName = bankName,
             timestamp = timestamp,
             rawBody = body,
-            categoryName = categoryName
+            categoryName = categoryName,
+            source = source,
+            referenceId = extractReference(body),
+            rawHash = rawMessageHash(sender, body)
         )
+    }
+
+    /**
+     * نوع العملية من نص الرسالة (المرحلة 6): الاسترداد بيتفحص الأول لأن رسالة
+     * الاسترداد غالبًا فيها كلمة "إيداع" كمان، والإيداع/التحويل الوارد = دخل.
+     * null = الرسالة دي مش عملية مالية أصلاً (إعلان، OTP، رصيد...).
+     */
+    internal fun detectType(body: String): TransactionType? {
+        val refundWords = listOf("استرداد", "رد مبلغ", "ارتجاع", "refund", "reversal", "reversed")
+        val creditWords = listOf("إيداع", "ايداع", "اضيف", "أضيف", "راتب", "مرتب", "credited", "deposit", "salary")
+        val debitWords = listOf(
+            "خصم", "شراء", "سحب", "تحويل", "دفع",
+            "debited", "purchase", "paid", "deducted", "withdrawal"
+        )
+
+        return when {
+            refundWords.any { body.contains(it, true) } -> TransactionType.REFUND
+            creditWords.any { body.contains(it, true) } -> TransactionType.INCOME
+            debitWords.any { body.contains(it, true) } -> TransactionType.EXPENSE
+            else -> null
+        }
+    }
+
+    /**
+     * رقم مرجع العملية لو البنك بعته. ده أدق مفتاح لمنع التكرار (المرحلة 17)،
+     * لأن نفس العملية بيوصل ليها نفس المرجع من كل المسارات.
+     */
+    internal fun extractReference(body: String): String {
+        val patterns = listOf(
+            Regex("""(?:مرجع|المرجع|رقم العملية|رقم المرجع)\s*[:#\-]?\s*([A-Za-z0-9]{4,24})"""),
+            Regex("""(?:ref|reference|txn|trx|transaction)\s*(?:no|id|#)?\s*[:#\-]?\s*([A-Za-z0-9]{4,24})""", RegexOption.IGNORE_CASE)
+        )
+        for (pattern in patterns) {
+            pattern.find(body)?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return ""
     }
 
     private fun parseWithCustomRules(
         sender: String,
         body: String,
         timestamp: Long,
-        rules: List<SmsRule>
+        rules: List<SmsRule>,
+        source: TransactionSource
     ): Expense? {
         for (rule in rules) {
             if (!rule.isEnabled) continue
@@ -92,11 +131,15 @@ object SmsParser {
 
                 return Expense(
                     amountMinor = amountMinor,
+                    type = detectType(body) ?: TransactionType.EXPENSE,
                     merchant = merchant ?: extractMerchant(body),
                     bankName = rule.bankName,
                     timestamp = timestamp,
                     rawBody = body,
-                    categoryName = detectCategory(body, merchant ?: "")
+                    categoryName = detectCategory(body, merchant ?: ""),
+                    source = source,
+                    referenceId = extractReference(body),
+                    rawHash = rawMessageHash(sender, body)
                 )
             } catch (e: Exception) {
                 // Regex غلط في القاعدة دي - تجاهلها وكمّل بالقواعد اللي بعدها

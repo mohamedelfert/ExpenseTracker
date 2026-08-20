@@ -149,10 +149,18 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    // قفل التطبيق بالبصمة/الوجه (المرحلة 16). المكتبة الوحيدة المضافة في
+    // المراحل 3-20: المصادقة الحيوية لازم تمر على النظام، مينفعش تتكتب بالإيد.
+    // بتجيب معاها androidx.fragment، وعشان كده MainActivity بقت FragmentActivity.
+    implementation("androidx.biometric:biometric:1.1.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // اختبارات وحدة على الـ JVM (منطق الفلوس والتحليل) — من غير أي جهاز.
     testImplementation("junit:junit:4.13.2")
+    // org.json موجودة في أندرويد نفسه لكن مش في الـ JVM، فمحتاجينها للاختبار
+    // بس عشان نختبر قراءة/كتابة ملف النسخة الاحتياطية.
+    testImplementation("org.json:json:20240303")
 
     // اختبار ترقية قاعدة البيانات (MigrationTestHelper) — بيتشغّل على جهاز/محاكي.
     androidTestImplementation("junit:junit:4.13.2")

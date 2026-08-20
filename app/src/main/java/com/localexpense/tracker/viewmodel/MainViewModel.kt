@@ -2,30 +2,42 @@ package com.localexpense.tracker.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.localexpense.tracker.data.Account
+import com.localexpense.tracker.data.AppSettings
+import com.localexpense.tracker.data.BackupManager
 import com.localexpense.tracker.data.Budget
 import com.localexpense.tracker.data.Category
 import com.localexpense.tracker.data.CategoryTotal
 import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.ExpenseRepository
+import com.localexpense.tracker.data.Merchant
+import com.localexpense.tracker.data.MerchantRule
 import com.localexpense.tracker.data.RecurringExpense
 import com.localexpense.tracker.data.SourceTotal
+import com.localexpense.tracker.data.TransactionFilter
+import com.localexpense.tracker.data.TransactionSource
+import com.localexpense.tracker.data.TransactionType
+import com.localexpense.tracker.domain.isAnomalous
+import com.localexpense.tracker.money.formatMinor
 import com.localexpense.tracker.parser.SmsImporter
 import com.localexpense.tracker.parser.SmsParser
+import com.localexpense.tracker.util.monthRange
 import com.localexpense.tracker.util.parseAmountMinor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Calendar
-import java.util.Locale
-import java.text.SimpleDateFormat
 
 import com.localexpense.tracker.data.SmsRule
 
@@ -57,27 +69,32 @@ sealed class ImportState {
     data class Error(val message: String) : ImportState()
 }
 
+/** حالة النسخ الاحتياطي/الاسترجاع (المرحلة 3 من خطة الترحيل). */
+sealed class BackupState {
+    data object Idle : BackupState()
+    data object Running : BackupState()
+    data class Done(val message: String) : BackupState()
+    data class Error(val message: String) : BackupState()
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ExpenseRepository(application)
+    val settings = AppSettings(application)
 
     val expenses: StateFlow<List<Expense>> = repository.observeExpenses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val monthRange: Pair<Long, Long> get() {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.DAY_OF_MONTH, 1)
-        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0)
-        val start = cal.timeInMillis
-        cal.add(Calendar.MONTH, 1)
-        val end = cal.timeInMillis - 1
-        return start to end
-    }
+    val recentTransactions: StateFlow<List<Expense>> = repository.observeRecent(10)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val currentMonth: Pair<Long, Long> get() = monthRange().let { it.start to it.end }
 
     val monthTotalsBySource: StateFlow<List<SourceTotal>> = repository.observeTotalsBySource()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = monthRange.let { (s, e) ->
+    val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = currentMonth.let { (s, e) ->
         repository.observeTotalsByCategoryBetween(s, e)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -88,11 +105,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val categories: StateFlow<List<Category>> = repository.observeCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val accounts: StateFlow<List<Account>> = repository.observeAccounts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val merchants: StateFlow<List<Merchant>> = repository.observeMerchants()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val merchantRules: StateFlow<List<MerchantRule>> = repository.observeMerchantRules()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val bankNames: StateFlow<List<String>> = repository.observeBankNames()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importState: StateFlow<ImportState> = _importState.asStateFlow()
 
     private val _cleanupState = MutableStateFlow<CleanupState>(CleanupState.Idle)
     val cleanupState: StateFlow<CleanupState> = _cleanupState.asStateFlow()
+
+    private val _backupState = MutableStateFlow<BackupState>(BackupState.Idle)
+    val backupState: StateFlow<BackupState> = _backupState.asStateFlow()
+
+    /** تحذير حركة شاذة (المرحلة 11) — بيظهر كبطاقة بعد تسجيل عملية غير معتادة. */
+    private val _anomalyWarning = MutableStateFlow<String?>(null)
+    val anomalyWarning: StateFlow<String?> = _anomalyWarning.asStateFlow()
 
     val rules: StateFlow<List<SmsRule>> = repository.observeRules()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -100,8 +136,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val budgets: StateFlow<List<Budget>> = repository.observeBudgets()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val overallBudget: StateFlow<Long> = repository.observeOverallBudget()
+        .map { it ?: 0L }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+
     val recurringExpenses: StateFlow<List<RecurringExpense>> = repository.observeRecurringExpenses()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ===== البحث والفلاتر (المرحلة 3) =====
+
+    private val _filter = MutableStateFlow(TransactionFilter())
+    val filter: StateFlow<TransactionFilter> = _filter.asStateFlow()
+
+    val searchResults: StateFlow<List<Expense>> = _filter
+        .flatMapLatest { repository.search(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun updateFilter(transform: (TransactionFilter) -> TransactionFilter) {
+        _filter.value = transform(_filter.value)
+    }
+
+    fun clearFilter() {
+        _filter.value = TransactionFilter()
+    }
+
+    fun observeTransaction(id: Long): Flow<Expense?> = repository.observeTransaction(id)
 
     private val prefs = application.getSharedPreferences("expense_tracker_prefs", Context.MODE_PRIVATE)
     private val _archivedYears = MutableStateFlow<Set<String>>(
@@ -113,34 +172,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         checkRecurringExpenses()
     }
 
+    /**
+     * تسجيل الدفعات الدورية المستحقة عند فتح التطبيق (المنطق نفسه بقى في
+     * الريبو عشان يدعم كل أنواع التكرار مش الشهري بس).
+     */
     private fun checkRecurringExpenses() {
         viewModelScope.launch {
-            val recurringList = repository.getRecurringExpensesSync()
-            val cal = Calendar.getInstance()
-            val currentDay = cal.get(Calendar.DAY_OF_MONTH)
-            val currentMonthStr = SimpleDateFormat("yyyy-MM", Locale.US).format(cal.time)
-            
-            for (recurring in recurringList) {
-                if (currentDay >= recurring.dayOfMonth && recurring.lastAddedMonth != currentMonthStr) {
-                    val timestamp = cal.timeInMillis
-                    val expense = Expense(
-                        amountMinor = recurring.amountMinor,
-                        merchant = recurring.merchant,
-                        timestamp = timestamp,
-                        bankName = recurring.bankName,
-                        categoryName = recurring.categoryName,
-                        rawBody = "Recurring: ${recurring.merchant}"
-                    )
-                    repository.insertExpense(expense)
-                    repository.updateRecurringExpense(recurring.copy(lastAddedMonth = currentMonthStr))
+            val inserted = withContext(Dispatchers.IO) { repository.processDueRecurring() }
+            for (expense in inserted) {
+                checkBudgetAlerts(expense.categoryName, expense.timestamp)
+            }
+            notifyUpcomingPayments()
+        }
+    }
 
-                    withContext(Dispatchers.IO) {
-                        val context = getApplication<Application>()
-                        val db = com.localexpense.tracker.data.AppDatabase.getDatabase(context)
-                        com.localexpense.tracker.notification.BudgetAlertChecker.checkAndNotify(
-                            context, db.expenseDao(), db.budgetDao(), recurring.categoryName, timestamp
-                        )
-                    }
+    /**
+     * تنبيه بالدفعات القادمة اللي داخل مدة التنبيه. بيشتغل وقت فتح التطبيق —
+     * ponytail: مفيش WorkManager، راجع NotificationHelper.showUpcomingPaymentNotification.
+     */
+    private fun notifyUpcomingPayments() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            val dayMillis = 24L * 60 * 60 * 1000
+            repository.upcomingPayments(withinDays = 7, now = now).forEach { payment ->
+                val daysUntil = ((payment.dueDate - now) / dayMillis).toInt()
+                if (daysUntil in 0..3) {
+                    com.localexpense.tracker.notification.NotificationHelper.showUpcomingPaymentNotification(
+                        getApplication(), payment.name, payment.amountMinor, daysUntil
+                    )
                 }
             }
         }
@@ -170,33 +229,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteCategory(category) }
     }
 
+    // ===== إضافة وتعديل الحركات =====
+
     fun addManualExpense(amountMinor: Long, merchant: String, category: String = "عام") {
-        viewModelScope.launch {
-            val timestamp = System.currentTimeMillis()
-            repository.insertExpense(
-                Expense(
-                    amountMinor = amountMinor,
-                    merchant = merchant,
-                    bankName = "يدوي",
-                    timestamp = timestamp,
-                    rawBody = "",
-                    categoryName = category
-                )
-            )
-            // بعد أي إضافة (يدوية أو تلقائية) بنتأكد هل الفئة دي قربت أو
-            // تخطّت الميزانية المحددة ليها الشهر ده، ولو آه بيطلع إشعار محلي.
-            withContext(Dispatchers.IO) {
-                val context = getApplication<Application>()
-                val db = com.localexpense.tracker.data.AppDatabase.getDatabase(context)
-                com.localexpense.tracker.notification.BudgetAlertChecker.checkAndNotify(
-                    context, db.expenseDao(), db.budgetDao(), category, timestamp
-                )
-            }
-        }
+        addTransaction(amountMinor, merchant, category, TransactionType.EXPENSE)
     }
 
     fun saveExpense(amountMinor: Long, merchant: String, category: String) {
         addManualExpense(amountMinor, merchant, category)
+    }
+
+    /**
+     * إضافة حركة يدوية من أي نوع (مصروف/دخل/استرداد). التحويلات ليها
+     * [addTransfer] لأنها محتاجة حسابين.
+     */
+    fun addTransaction(
+        amountMinor: Long,
+        merchant: String,
+        category: String = "عام",
+        type: TransactionType = TransactionType.EXPENSE,
+        accountId: Long? = null,
+        note: String = "",
+        timestamp: Long = System.currentTimeMillis()
+    ) {
+        viewModelScope.launch {
+            repository.insertTransaction(
+                Expense(
+                    amountMinor = amountMinor,
+                    type = type,
+                    merchant = merchant,
+                    bankName = if (type == TransactionType.INCOME) "دخل" else "يدوي",
+                    timestamp = timestamp,
+                    rawBody = "",
+                    categoryName = category,
+                    accountId = accountId,
+                    source = TransactionSource.MANUAL,
+                    note = note
+                ),
+                autoCategorize = true
+            )
+
+            if (type == TransactionType.EXPENSE) {
+                checkAnomaly(amountMinor, category)
+                checkBudgetAlerts(category, timestamp)
+            }
+        }
+    }
+
+    fun addTransfer(amountMinor: Long, fromAccountId: Long?, toAccountId: Long?, note: String = "") {
+        viewModelScope.launch { repository.addTransfer(amountMinor, fromAccountId, toAccountId, note) }
     }
 
     fun updateExpense(expense: Expense) {
@@ -207,6 +288,96 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteExpense(expense) }
     }
 
+    fun setVerified(expense: Expense, verified: Boolean) {
+        viewModelScope.launch { repository.setVerified(expense, verified) }
+    }
+
+    fun updateNote(expense: Expense, note: String) {
+        viewModelScope.launch { repository.updateExpense(expense.copy(note = note)) }
+    }
+
+    /**
+     * تغيير فئة حركة. [applyToMerchant] = true معناها المستخدم طلب صريح إن كل
+     * حركات نفس الجهة تتحول للفئة دي وإن القاعدة تتحفظ للمستقبل (المرحلة 4).
+     */
+    fun changeCategory(expense: Expense, categoryName: String, applyToMerchant: Boolean) {
+        viewModelScope.launch {
+            repository.updateExpense(expense.copy(categoryName = categoryName))
+            if (applyToMerchant) {
+                repository.learnMerchantCategory(expense.merchant, categoryName, applyToPast = true)
+            }
+        }
+    }
+
+    fun changeMerchant(expense: Expense, merchant: String) {
+        viewModelScope.launch { repository.updateExpense(expense.copy(merchant = merchant)) }
+    }
+
+    /** "اعمل قاعدة من الحركة دي" (المرحلة 5، بند 19). */
+    fun createRuleFromTransaction(expense: Expense) {
+        viewModelScope.launch {
+            repository.learnMerchantCategory(expense.merchant, expense.categoryName, applyToPast = false)
+        }
+    }
+
+    private suspend fun checkAnomaly(amountMinor: Long, category: String) {
+        val since = System.currentTimeMillis() - 180L * 24 * 60 * 60 * 1000 // آخر 6 شهور
+        val (average, count) = repository.categoryAverageAndCount(category, since)
+        val anomalous = isAnomalous(
+            amountMinor = amountMinor,
+            categoryAverageMinor = average,
+            categorySampleCount = count,
+            thresholdMultiplier = settings.anomalyMultiplier.toDouble()
+        )
+        _anomalyWarning.value = if (anomalous && average != null) {
+            "العملية دي (${formatMinor(amountMinor)}) أعلى بكتير من متوسط \"$category\" " +
+                "(${formatMinor(average.toLong())})."
+        } else {
+            null
+        }
+    }
+
+    fun dismissAnomalyWarning() {
+        _anomalyWarning.value = null
+    }
+
+    private suspend fun checkBudgetAlerts(category: String, timestamp: Long) {
+        withContext(Dispatchers.IO) {
+            val context = getApplication<Application>()
+            val db = com.localexpense.tracker.data.AppDatabase.getDatabase(context)
+            com.localexpense.tracker.notification.BudgetAlertChecker.checkAndNotify(
+                context, db.expenseDao(), db.budgetDao(), category, timestamp
+            )
+        }
+    }
+
+    // ===== الحسابات =====
+
+    fun saveAccount(account: Account) {
+        viewModelScope.launch { repository.saveAccount(account) }
+    }
+
+    fun deleteAccount(account: Account) {
+        viewModelScope.launch { repository.deleteAccount(account) }
+    }
+
+    suspend fun accountBalance(accountId: Long): Long = repository.accountBalance(accountId)
+
+    // ===== الجهات =====
+
+    suspend fun merchantAnalytics(merchant: String) = repository.merchantAnalytics(merchant)
+
+    suspend fun searchByMerchant(merchant: String): List<Expense> =
+        repository.searchOnce(TransactionFilter(merchant = merchant, limit = 200))
+
+    fun setMerchantCategory(merchantName: String, categoryName: String, applyToPast: Boolean) {
+        viewModelScope.launch {
+            repository.learnMerchantCategory(merchantName, categoryName, applyToPast)
+        }
+    }
+
+    // ===== القواعد =====
+
     fun saveRule(rule: SmsRule) {
         viewModelScope.launch { repository.insertRule(rule) }
     }
@@ -215,14 +386,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteRule(rule) }
     }
 
+    fun saveMerchantRule(rule: MerchantRule) {
+        viewModelScope.launch { repository.saveMerchantRule(rule) }
+    }
+
+    fun deleteMerchantRule(rule: MerchantRule) {
+        viewModelScope.launch { repository.deleteMerchantRule(rule) }
+    }
+
     fun cleanupDuplicateExpenses() {
         viewModelScope.launch {
             _cleanupState.value = CleanupState.Running
-            // Dummy logic or real if repository has it
             val removed = withContext(Dispatchers.IO) { repository.cleanupDuplicates() }
             _cleanupState.value = CleanupState.Done(removed)
         }
     }
+
+    // ===== الميزانيات =====
 
     fun setBudget(categoryName: String, limitMinor: Long) {
         viewModelScope.launch { repository.setBudget(Budget(categoryName, limitMinor)) }
@@ -232,7 +412,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteBudget(categoryName) }
     }
 
-    fun addRecurringExpense(amountMinor: Long, merchant: String, bankName: String, categoryName: String, dayOfMonth: Int) {
+    fun setOverallBudget(limitMinor: Long) {
+        viewModelScope.launch { repository.setOverallBudget(limitMinor) }
+    }
+
+    // ===== الدوريات (التفاصيل في PlansViewModel) =====
+
+    fun addRecurringExpense(
+        amountMinor: Long,
+        merchant: String,
+        bankName: String,
+        categoryName: String,
+        dayOfMonth: Int
+    ) {
         viewModelScope.launch {
             repository.insertRecurringExpense(
                 RecurringExpense(
@@ -241,7 +433,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     bankName = bankName,
                     categoryName = categoryName,
                     dayOfMonth = dayOfMonth,
-                    lastAddedMonth = ""
+                    lastAddedMonth = "",
+                    nextDueDate = com.localexpense.tracker.domain.firstDueDateForDayOfMonth(
+                        System.currentTimeMillis(), dayOfMonth
+                    )
                 )
             )
         }
@@ -250,6 +445,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteRecurringExpense(recurringExpense: RecurringExpense) {
         viewModelScope.launch { repository.deleteRecurringExpense(recurringExpense) }
     }
+
+    // ===== الاستيراد =====
 
     fun importFromInbox(startMillis: Long? = null, endMillis: Long? = null) {
         viewModelScope.launch {
@@ -264,6 +461,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun resetImportState() {
         _importState.value = ImportState.Idle
     }
+
+    // ===== النسخ الاحتياطي والاسترجاع =====
+
+    fun exportBackup(uri: Uri) {
+        viewModelScope.launch {
+            _backupState.value = BackupState.Running
+            _backupState.value = try {
+                val rows = BackupManager.export(getApplication(), uri)
+                settings.lastBackupAt = System.currentTimeMillis()
+                BackupState.Done("تم حفظ نسخة احتياطية فيها $rows سجل")
+            } catch (e: Exception) {
+                BackupState.Error("فشل الحفظ: ${e.message}")
+            }
+        }
+    }
+
+    fun restoreBackup(uri: Uri) {
+        viewModelScope.launch {
+            _backupState.value = BackupState.Running
+            _backupState.value = when (val result = BackupManager.restore(getApplication(), uri)) {
+                is BackupManager.RestoreResult.Success ->
+                    BackupState.Done("تم استرجاع ${result.rows} سجل")
+                is BackupManager.RestoreResult.Failure ->
+                    BackupState.Error(result.message)
+            }
+        }
+    }
+
+    fun resetBackupState() {
+        _backupState.value = BackupState.Idle
+    }
+
+    // ===== اختبار القواعد =====
 
     fun testSmsMessage(sender: String, body: String): SmsTestResult {
         val result = SmsParser.parseSms(sender, body, System.currentTimeMillis(), rules.value)
@@ -306,5 +536,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             return RuleTestResult(matched = false)
         }
+    }
+
+    /** مستخدمة في تصدير CSV من الواجهة. */
+    val includeRawTextInExport: Boolean get() = settings.includeRawTextInExport
+
+    fun setIncludeRawTextInExport(enabled: Boolean) {
+        settings.includeRawTextInExport = enabled
     }
 }
