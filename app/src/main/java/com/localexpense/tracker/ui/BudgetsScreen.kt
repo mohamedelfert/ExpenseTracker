@@ -40,6 +40,8 @@ import com.localexpense.tracker.money.minorToPlainDecimal
 import com.localexpense.tracker.util.parseAmountMinor
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 import com.localexpense.tracker.viewmodel.MainViewModel
+import androidx.compose.foundation.layout.width
+import com.localexpense.tracker.ui.getCategoryIcon
 
 /**
  * الميزانيات (المرحلة 7): ميزانية كلية للشهر + ميزانية لكل فئة، وكل واحدة
@@ -98,23 +100,28 @@ fun BudgetsScreen(
             items(categories) { category ->
                 val ctx = context
                 val progress = ctx?.categoryBudget(category.name)
-                Column {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(category.name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { editingCategory = category.name }) {
-                            Text(if (progress != null && progress.limitMinor > 0) "تعديل" else "تحديد")
-                        }
-                        if (!category.isBuiltIn) {
-                            IconButton(onClick = { viewModel.deleteCategory(category) }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "حذف الفئة")
+                SoftCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    Column(Modifier.padding(12.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconBadge(icon = getCategoryIcon(category.name), tint = MaterialTheme.colorScheme.primary, size = 32.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Text(category.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { editingCategory = category.name }) {
+                                Text(if (progress != null && progress.limitMinor > 0) "تعديل" else "تحديد")
+                            }
+                            if (!category.isBuiltIn) {
+                                IconButton(onClick = { viewModel.deleteCategory(category) }) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "حذف الفئة", tint = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
-                    }
-                    if (progress != null && progress.limitMinor > 0) {
-                        BudgetBar(progress, "")
+                        if (progress != null && progress.limitMinor > 0) {
+                            Spacer(Modifier.height(8.dp))
+                            BudgetBar(progress, "")
+                        }
                     }
                 }
             }

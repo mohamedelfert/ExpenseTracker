@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Send
@@ -100,14 +101,32 @@ fun AssistantScreen(finance: FinanceViewModel, onBack: () -> Unit) {
                 items(messages.size) { index ->
                     val message = messages[index]
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
-                        Text(message.question, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(4.dp))
-                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                            Text(
-                                message.answer,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(12.dp)
-                            )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 4.dp)
+                            ) {
+                                Text(
+                                    message.question,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp)
+                            ) {
+                                Text(
+                                    message.answer,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
                         }
                     }
                 }

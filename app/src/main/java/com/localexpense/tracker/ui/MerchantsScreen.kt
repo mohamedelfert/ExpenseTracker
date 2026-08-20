@@ -68,23 +68,26 @@ fun MerchantsScreen(
             return@Scaffold
         }
 
-        LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding).padding(top = 8.dp)) {
             items(merchants, key = { it.id }) { merchant ->
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(merchant.name, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            merchant.categoryName.ifBlank { "مفيش فئة مربوطة" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                SoftCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(merchant.name, style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                merchant.categoryName.ifBlank { "مفيش فئة مربوطة" },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(onClick = { onOpenMerchant(merchant.name) }) { Text("تفاصيل") }
                     }
-                    TextButton(onClick = { onOpenMerchant(merchant.name) }) { Text("تفاصيل") }
                 }
-                HorizontalDivider()
             }
         }
     }

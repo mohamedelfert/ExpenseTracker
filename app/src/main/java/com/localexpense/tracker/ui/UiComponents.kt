@@ -37,6 +37,22 @@ import com.localexpense.tracker.domain.BudgetProgress
 import com.localexpense.tracker.domain.BudgetState
 import com.localexpense.tracker.ui.theme.finance
 import com.localexpense.tracker.money.formatMinor
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.*
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 
 /**
  * مكوّنات واجهة مشتركة بين شاشات التحليلات — عشان الداشبورد والميزانيات
@@ -168,11 +184,10 @@ fun HeroBalanceCard(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text(
-                formatMinor(amountMinor),
+            AnimatedCounter(
+                countMinor = amountMinor,
                 style = MaterialTheme.typography.displayMedium,
-                color = Color.White,
-                fontWeight = FontWeight.Bold
+                color = Color.White
             )
             Spacer(Modifier.height(10.dp))
             Text(
@@ -257,18 +272,51 @@ fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: C
     if (values.isEmpty()) return
     val color = barColor ?: chartPalette().first()
     val max = (values.maxOrNull() ?: 1L).coerceAtLeast(1L)
-    Canvas(modifier = modifier) {
+    
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    
+    Canvas(modifier = modifier.pointerInput(values) {
+        detectTapGestures { offset ->
+            val gap = 2f
+            val barWidth = ((size.width - gap * (values.size - 1)) / values.size).coerceAtLeast(1f)
+            val index = (offset.x / (barWidth + gap)).toInt()
+            if (index in values.indices) {
+                selectedIndex = index
+            }
+        }
+    }) {
         val gap = 2f
         val barWidth = ((size.width - gap * (values.size - 1)) / values.size).coerceAtLeast(1f)
+        val points = mutableListOf<androidx.compose.ui.geometry.Offset>()
+        
         values.forEachIndexed { index, value ->
             val height = (value.toFloat() / max) * size.height
+            val x = index * (barWidth + gap)
+            val y = size.height - height
+            
+            // رسم العمود
+            val barAlpha = if (selectedIndex == null || selectedIndex == index) 1f else 0.4f
             drawRect(
-                color = color,
-                topLeft = androidx.compose.ui.geometry.Offset(
-                    x = index * (barWidth + gap),
-                    y = size.height - height
-                ),
+                color = color.copy(alpha = barAlpha),
+                topLeft = androidx.compose.ui.geometry.Offset(x = x, y = y),
                 size = androidx.compose.ui.geometry.Size(barWidth, height)
+            )
+            
+            points.add(androidx.compose.ui.geometry.Offset(x + barWidth / 2, y))
+        }
+        
+        // رسم خط الاتجاه (Trend line)
+        if (points.size > 1) {
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(points.first().x, points.first().y)
+                for (i in 1 until points.size) {
+                    lineTo(points[i].x, points[i].y)
+                }
+            }
+            drawPath(
+                path = path,
+                color = color.copy(alpha = 0.5f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f)))
             )
         }
     }
@@ -276,19 +324,43 @@ fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: C
 
 @Composable
 fun DonutChart(slices: List<Pair<String, Long>>, modifier: Modifier = Modifier) {
+    if (slices.isEmpty()) return
     val total = slices.sumOf { it.second }.coerceAtLeast(1L)
     val palette = chartPalette()
-    Canvas(modifier = modifier) {
+    
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    
+    Canvas(modifier = modifier.pointerInput(slices) {
+        detectTapGestures { offset ->
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2)
+            val angle = (Math.toDegrees(Math.atan2((offset.y - center.y).toDouble(), (offset.x - center.x).toDouble())) + 360) % 360
+            // Adjust angle to match -90 start
+            val adjustedAngle = (angle + 90) % 360
+            
+            var currentAngle = 0f
+            for (i in slices.indices) {
+                val sweep = (slices[i].second.toDouble() / total * 360.0).toFloat()
+                if (adjustedAngle >= currentAngle && adjustedAngle < currentAngle + sweep) {
+                    selectedIndex = if (selectedIndex == i) null else i
+                    break
+                }
+                currentAngle += sweep
+            }
+        }
+    }) {
         var startAngle = -90f
         slices.forEachIndexed { index, (_, value) ->
             val sweep = (value.toDouble() / total * 360.0).toFloat()
+            val sliceAlpha = if (selectedIndex == null || selectedIndex == index) 1f else 0.4f
+            val strokeWidth = if (selectedIndex == index) 50f else 40f
+            
             drawArc(
-                color = palette[index % palette.size],
+                color = palette[index % palette.size].copy(alpha = sliceAlpha),
                 startAngle = startAngle,
                 sweepAngle = sweep,
                 useCenter = false,
                 style = androidx.compose.ui.graphics.drawscope.Stroke(
-                    width = 40f,
+                    width = strokeWidth,
                     cap = androidx.compose.ui.graphics.StrokeCap.Butt
                 )
             )
@@ -309,13 +381,22 @@ fun LegendDot(color: Color) {
 
 /** حالة فاضية موحّدة (شرط الـ UX في الـ spec: حالات فاضية واضحة). */
 @Composable
-fun EmptyState(title: String, hint: String? = null, modifier: Modifier = Modifier) {
+fun EmptyState(title: String, hint: String? = null, modifier: Modifier = Modifier, icon: ImageVector? = null) {
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        if (icon != null) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.surfaceVariant
+            )
+            Spacer(Modifier.height(16.dp))
+        }
         Text(title, style = MaterialTheme.typography.titleSmall)
         if (hint != null) {
             Spacer(Modifier.height(6.dp))
@@ -360,4 +441,62 @@ fun AmountRow(
             }
         }
     }
+}
+
+@Composable
+fun AnimatedCounter(
+    countMinor: Long,
+    modifier: Modifier = Modifier,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.displayMedium,
+    color: Color = Color.White
+) {
+    AnimatedContent(
+        targetState = countMinor,
+        transitionSpec = {
+            if (targetState > initialState) {
+                slideInVertically { height -> height } + fadeIn() togetherWith
+                        slideOutVertically { height -> -height } + fadeOut()
+            } else {
+                slideInVertically { height -> -height } + fadeIn() togetherWith
+                        slideOutVertically { height -> height } + fadeOut()
+            }.using(SizeTransform(clip = false))
+        },
+        label = "CounterAnimation"
+    ) { targetCount ->
+        Text(
+            text = formatMinor(targetCount),
+            style = style,
+            color = color,
+            fontWeight = FontWeight.Bold,
+            modifier = modifier
+        )
+    }
+}
+
+fun Modifier.shimmerEffect(): Modifier = androidx.compose.ui.composed {
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val startOffsetX by transition.animateFloat(
+        initialValue = -2 * size.width.toFloat(),
+        targetValue = 2 * size.width.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000)
+        ),
+        label = "shimmerOffsetX"
+    )
+
+    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
+    val shimmerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+
+    background(
+        brush = Brush.linearGradient(
+            colors = listOf(
+                surfaceColor,
+                shimmerColor,
+                surfaceColor
+            ),
+            start = androidx.compose.ui.geometry.Offset(startOffsetX, 0f),
+            end = androidx.compose.ui.geometry.Offset(startOffsetX + size.width.toFloat(), size.height.toFloat())
+        )
+    ).onGloballyPositioned { size = it.size }
 }

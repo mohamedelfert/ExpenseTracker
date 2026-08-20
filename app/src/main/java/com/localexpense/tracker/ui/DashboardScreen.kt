@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,6 +44,8 @@ import com.localexpense.tracker.domain.InsightLevel
 import com.localexpense.tracker.domain.UpcomingKind
 import com.localexpense.tracker.money.formatMinor
 import com.localexpense.tracker.ui.theme.finance
+import com.localexpense.tracker.ui.shimmerEffect
+import com.localexpense.tracker.ui.getCategoryIcon
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 import com.localexpense.tracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
@@ -92,7 +95,19 @@ fun DashboardScreen(
     ) { padding ->
         val ctx = context
         if (ctx == null) {
-            EmptyState(title = "جاري حساب أرقام الشهر...", modifier = Modifier.padding(padding))
+            Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+                Box(Modifier.fillMaxWidth().height(60.dp).clip(MaterialTheme.shapes.medium).shimmerEffect())
+                Spacer(Modifier.height(16.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.weight(1f).height(100.dp).clip(MaterialTheme.shapes.medium).shimmerEffect())
+                    Box(Modifier.weight(1f).height(100.dp).clip(MaterialTheme.shapes.medium).shimmerEffect())
+                    Box(Modifier.weight(1f).height(100.dp).clip(MaterialTheme.shapes.medium).shimmerEffect())
+                }
+                Spacer(Modifier.height(24.dp))
+                Box(Modifier.fillMaxWidth().height(200.dp).clip(MaterialTheme.shapes.medium).shimmerEffect())
+                Spacer(Modifier.height(24.dp))
+                Box(Modifier.fillMaxWidth().height(150.dp).clip(MaterialTheme.shapes.medium).shimmerEffect())
+            }
             return@Scaffold
         }
 
@@ -241,7 +256,7 @@ fun DashboardScreen(
                     AmountRow(
                         label = name,
                         amountMinor = total,
-                        leading = { LegendDot(palette[index % palette.size]) },
+                        leading = { IconBadge(icon = getCategoryIcon(name), tint = palette[index % palette.size], size = 32.dp) },
                         trailingText = "${(total * 100 / ctx.summary.netSpentMinor.coerceAtLeast(1)).toInt()}%"
                     )
                 }

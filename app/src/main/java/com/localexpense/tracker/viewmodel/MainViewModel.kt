@@ -610,4 +610,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setIncludeRawTextInExport(enabled: Boolean) {
         settings.includeRawTextInExport = enabled
     }
+
+    private val _useDynamicColor = MutableStateFlow(settings.useDynamicColor)
+    val useDynamicColor: StateFlow<Boolean> = _useDynamicColor.asStateFlow()
+
+    fun setUseDynamicColor(enabled: Boolean) {
+        settings.useDynamicColor = enabled
+        _useDynamicColor.value = enabled
+    }
 }

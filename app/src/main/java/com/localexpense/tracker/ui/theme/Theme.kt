@@ -12,6 +12,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import android.os.Build
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.ui.platform.LocalContext
 
 private val LightColors = lightColorScheme(
     primary = Emerald600,
@@ -116,11 +120,18 @@ val MaterialTheme.finance: FinanceColors
 @Composable
 fun ExpenseTrackerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    // مفيش dynamicColor: التطبيق مالي وألوان الدخل/المصروف لازم تفضل ثابتة
-    // ومفهومة، مش تتغير مع خلفية الموبايل.
-    val colorScheme = if (darkTheme) DarkColors else LightColors
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColors
+        else -> LightColors
+    }
+    
     val financeColors = if (darkTheme) DarkFinanceColors else LightFinanceColors
 
     val view = LocalView.current

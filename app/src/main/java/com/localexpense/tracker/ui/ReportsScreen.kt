@@ -132,19 +132,18 @@ fun ReportsScreen(
 
             items(FinanceViewModel.ReportKind.entries.size) { index ->
                 val kind = FinanceViewModel.ReportKind.entries[index]
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(kind.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    TextButton(onClick = {
-                        pendingKind = kind
-                        // بعض الأجهزة مفيهاش منتقي ملفات، و launch() ساعتها
-                        // بترمي ActivityNotFoundException وبتقفل التطبيق.
-                        // البديل: نصدّر على مجلد التطبيق ونقول للمستخدم المسار.
-                        runCatching { csvLauncher.launch("${kind.name.lowercase()}.csv") }
-                            .onFailure { finance.exportCsvReport(null, kind) }
-                    }) { Text("CSV") }
+                SoftCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(kind.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        TextButton(onClick = {
+                            pendingKind = kind
+                            runCatching { csvLauncher.launch("${kind.name.lowercase()}.csv") }
+                                .onFailure { finance.exportCsvReport(null, kind) }
+                        }) { Text("CSV") }
+                    }
                 }
             }
 

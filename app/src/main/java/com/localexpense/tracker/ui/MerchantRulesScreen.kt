@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.data.MerchantRule
 import com.localexpense.tracker.domain.CategorySource
@@ -94,27 +96,33 @@ fun MerchantRulesScreen(
                     "أي قاعدة بتتولد لوحدها لما تغيّر فئة حركة وتطلب تطبيقها على كل حركات الجهة."
                 )
             } else {
-                LazyColumn {
+                LazyColumn(Modifier.padding(top = 8.dp)) {
                     items(rules, key = { it.id }) { rule ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("${rule.pattern} → ${rule.categoryName}", style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "أولوية ${rule.priority}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                        SoftCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("${rule.pattern} → ${rule.categoryName}", style = MaterialTheme.typography.bodyLarge)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "أولوية ${rule.priority}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = rule.isEnabled,
+                                    onCheckedChange = { viewModel.saveMerchantRule(rule.copy(isEnabled = it)) }
                                 )
-                            }
-                            Switch(
-                                checked = rule.isEnabled,
-                                onCheckedChange = { viewModel.saveMerchantRule(rule.copy(isEnabled = it)) }
-                            )
-                            TextButton(onClick = { editing = rule; showEditor = true }) { Text("تعديل") }
-                            IconButton(onClick = { viewModel.deleteMerchantRule(rule) }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "حذف")
+                                Spacer(Modifier.width(8.dp))
+                                IconButton(onClick = { editing = rule; showEditor = true }) {
+                                    Icon(Icons.Filled.Edit, contentDescription = "تعديل", tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = { viewModel.deleteMerchantRule(rule) }) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "حذف", tint = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
                     }

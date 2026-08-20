@@ -18,6 +18,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.localexpense.tracker.security.AppLock
@@ -251,7 +252,9 @@ class MainActivity : FragmentActivity() {
         locked.value = AppLock.isLockEnabled(this)
 
         setContent {
-            ExpenseTrackerTheme {
+            val viewModelForTheme: MainViewModel = viewModel()
+            val dynamicThemeEnabled = viewModelForTheme.useDynamicColor.collectAsState(initial = false).value
+            ExpenseTrackerTheme(dynamicColor = dynamicThemeEnabled) {
                 // كل الـ ViewModels على مستوى الـ Activity: كده محرّك
                 // التحليلات نسخة واحدة لكل الشاشات (راجع التعليق في AppNavHost).
                 val viewModel: MainViewModel = viewModel()
@@ -261,6 +264,7 @@ class MainActivity : FragmentActivity() {
                 val smsGranted by smsPermissionGranted
                 val notifGranted by notificationAccessGranted
                 val isLocked by locked
+                val useDynamic by viewModel.useDynamicColor.collectAsState(initial = false)
 
                 // إعادة فحص حالة الإذن، وفحص هل لازم نقفل تاني بعد الرجوع
                 // من الخلفية حسب المهلة المحددة في الإعدادات.

@@ -58,22 +58,24 @@ fun CompareMonthsScreen(finance: FinanceViewModel, onBack: () -> Unit) {
         }
 
         val comparison = ctx.comparison
-        LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding).padding(top = 8.dp)) {
             item {
-                Column(Modifier.padding(16.dp)) {
-                    Text(ctx.monthLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "الشهر ده ${formatMinor(comparison.currentTotalMinor)} — " +
-                            "الشهر اللي فات ${formatMinor(comparison.previousTotalMinor)}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    comparison.totalChangePercent?.let { change ->
+                SoftCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(ctx.monthLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            if (change >= 0) "↑ زيادة ${change.toInt()}%" else "↓ نقصان ${-change.toInt()}%",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (change >= 0) MaterialTheme.finance.expense else MaterialTheme.finance.income
+                            "الشهر ده ${formatMinor(comparison.currentTotalMinor)} — " +
+                                "الشهر اللي فات ${formatMinor(comparison.previousTotalMinor)}",
+                            style = MaterialTheme.typography.bodyMedium
                         )
+                        comparison.totalChangePercent?.let { change ->
+                            Text(
+                                if (change >= 0) "↑ زيادة ${change.toInt()}%" else "↓ نقصان ${-change.toInt()}%",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (change >= 0) MaterialTheme.finance.expense else MaterialTheme.finance.income
+                            )
+                        }
                     }
                 }
             }
@@ -100,32 +102,35 @@ fun CompareMonthsScreen(finance: FinanceViewModel, onBack: () -> Unit) {
 
             items(comparison.changes.size) { index ->
                 val change = comparison.changes[index]
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(change.categoryName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
-                        Text(
-                            "${formatMinor(change.previousMinor, withDecimals = false)} → " +
-                                formatMinor(change.currentMinor, withDecimals = false),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        val label = when {
-                            change.isNew -> "جديد"
-                            change.changePercent == null -> "—"
-                            change.changePercent >= 0 -> "+${change.changePercent.toInt()}%"
-                            else -> "${change.changePercent.toInt()}%"
-                        }
-                        Text(
-                            label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = when {
-                                change.deltaMinor > 0 -> MaterialTheme.finance.expense
-                                change.deltaMinor < 0 -> MaterialTheme.finance.income
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                SoftCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    ) {
+                        Text(change.categoryName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
+                            Text(
+                                "${formatMinor(change.previousMinor, withDecimals = false)} → " +
+                                    formatMinor(change.currentMinor, withDecimals = false),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            val label = when {
+                                change.isNew -> "جديد"
+                                change.changePercent == null -> "—"
+                                change.changePercent >= 0 -> "+${change.changePercent.toInt()}%"
+                                else -> "${change.changePercent.toInt()}%"
                             }
-                        )
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = when {
+                                    change.deltaMinor > 0 -> MaterialTheme.finance.expense
+                                    change.deltaMinor < 0 -> MaterialTheme.finance.income
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
                     }
                 }
             }

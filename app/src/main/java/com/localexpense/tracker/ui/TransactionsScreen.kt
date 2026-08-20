@@ -34,6 +34,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -171,12 +180,72 @@ fun TransactionsScreen(
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(results, key = { it.id }) { expense ->
-                        AmountRow(
-                            label = expense.merchant,
-                            amountMinor = expense.amountMinor,
-                            trailingText = "${expense.categoryName} • ${timeFormat.format(Date(expense.timestamp))}",
-                            onClick = { onOpenTransaction(expense.id) }
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                when (value) {
+                                    SwipeToDismissBoxValue.StartToEnd -> {
+                                        onOpenTransaction(expense.id)
+                                        false
+                                    }
+                                    SwipeToDismissBoxValue.EndToStart -> {
+                                        viewModel.deleteExpense(expense)
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
                         )
+                        
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            backgroundContent = {
+                                val direction = dismissState.dismissDirection
+                                val color = when (direction) {
+                                    SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
+                                    SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
+                                    else -> Color.Transparent
+                                }
+                                val icon = when (direction) {
+                                    SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Edit
+                                    SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
+                                    else -> null
+                                }
+                                val alignment = when (direction) {
+                                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                                    SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                                    else -> Alignment.Center
+                                }
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(vertical = 4.dp, horizontal = 16.dp)
+                                        .background(color, MaterialTheme.shapes.medium)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = alignment
+                                ) {
+                                    if (icon != null) {
+                                        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                            }
+                        ) {
+                            SoftCard(modifier = Modifier.padding(vertical = 4.dp, horizontal = 16.dp)) {
+                                AmountRow(
+                                    label = expense.merchant,
+                                    amountMinor = expense.amountMinor,
+                                    leading = { 
+                                        IconBadge(
+                                            icon = getCategoryIcon(expense.categoryName), 
+                                            tint = MaterialTheme.colorScheme.primary, 
+                                            size = 36.dp
+                                        ) 
+                                    },
+                                    trailingText = "${expense.categoryName} • ${timeFormat.format(Date(expense.timestamp))}",
+                                    onClick = { onOpenTransaction(expense.id) }
+                                )
+                            }
+                        }
                     }
                 }
             }

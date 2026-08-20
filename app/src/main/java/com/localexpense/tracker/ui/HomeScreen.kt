@@ -27,6 +27,9 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -135,6 +138,29 @@ fun HomeScreen(
         else -> null
     }
 
+    val pullToRefreshState = rememberPullToRefreshState()
+    if (pullToRefreshState.isRefreshing) {
+        LaunchedEffect(true) {
+            if (BuildConfig.ENABLE_SMS_IMPORT && smsPermissionGranted && !isImporting) {
+                val cal = Calendar.getInstance()
+                cal.add(Calendar.MONTH, -3)
+                viewModel.importFromInbox(cal.timeInMillis, null)
+            } else if (!smsPermissionGranted && BuildConfig.ENABLE_SMS_IMPORT) {
+                showDisclosureDialog = true
+                pullToRefreshState.endRefresh()
+            } else {
+                kotlinx.coroutines.delay(1000)
+                pullToRefreshState.endRefresh()
+            }
+        }
+    }
+
+    LaunchedEffect(isImporting) {
+        if (!isImporting && pullToRefreshState.isRefreshing) {
+            pullToRefreshState.endRefresh()
+        }
+    }
+
     Scaffold(
         topBar = {
             if (isSelectionMode) {
@@ -190,14 +216,18 @@ fun HomeScreen(
             }
         }
     ) { paddingValues ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(paddingValues)
+                .nestedScroll(pullToRefreshState.nestedScrollConnection)
         ) {
-            // ===== بطاقة ملخص الشهر (Hero) =====
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // ===== بطاقة ملخص الشهر (Hero) =====
             item {
                 HeroBalanceCard(
                     title = "مصروفات الشهر الحالي",
@@ -254,34 +284,7 @@ fun HomeScreen(
                 }
             }
 
-            // ===== استيراد الرسائل (نسخة direct فقط) =====
-            if (BuildConfig.ENABLE_SMS_IMPORT) {
-                item {
-                    Button(
-                        onClick = {
-                            if (smsPermissionGranted) showImportRangeDialog = true else showDisclosureDialog = true
-                        },
-                        enabled = !isImporting,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        if (isImporting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text("جاري الاستيراد...")
-                        } else {
-                            Icon(Icons.Default.Refresh, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("مزامنة واستيراد الرسائل")
-                        }
-                    }
-                }
-            }
+            // تم استبدال زرار الاستيراد بالسحب للتحديث (Pull to refresh)
 
             importStatusMessage?.let { message ->
                 item {
@@ -396,6 +399,11 @@ fun HomeScreen(
                     }
                 }
             }
+            
+            PullToRefreshContainer(
+                state = pullToRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
         }
     }
 

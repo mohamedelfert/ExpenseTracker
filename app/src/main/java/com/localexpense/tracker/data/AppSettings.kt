@@ -37,10 +37,16 @@ class AppSettings(context: Context) {
         get() = prefs.getLong(KEY_LAST_BACKUP, 0L)
         set(value) { prefs.edit().putLong(KEY_LAST_BACKUP, value).apply() }
 
+    /** استخدام ألوان النظام (Material You) في أندرويد 12+ بدلاً من الألوان الثابتة. */
+    var useDynamicColor: Boolean
+        get() = prefs.getBoolean(KEY_DYNAMIC_COLOR, false)
+        set(value) { prefs.edit().putBoolean(KEY_DYNAMIC_COLOR, value).apply() }
+
     private companion object {
         const val KEY_DISMISSED = "dismissed_insights"
         const val KEY_INCLUDE_RAW = "include_raw_text"
         const val KEY_ANOMALY = "anomaly_multiplier"
         const val KEY_LAST_BACKUP = "last_backup_at"
+        const val KEY_DYNAMIC_COLOR = "use_dynamic_color"
     }
 }

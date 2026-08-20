@@ -230,6 +230,30 @@ fun SettingsScreen(
                 }
             }
 
+            // ===== المظهر (Theme) =====
+            item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+            item { SectionHeader("المظهر") }
+            item {
+                val useDynamicColor by viewModel.useDynamicColor.collectAsStateWithLifecycle()
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("ألوان النظام (Material You)", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "استخدام ألوان متناسقة مع خلفية جهازك (مدعوم في أندرويد 12+)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = useDynamicColor,
+                        onCheckedChange = { viewModel.setDynamicColor(it) }
+                    )
+                }
+            }
+
             // ===== كشف الحركات الشاذة =====
             item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
             item { SectionHeader("كشف الحركات غير المعتادة") }
@@ -467,4 +491,4 @@ private fun PrivacyLine(text: String) {
  * المشروع، وإلا الزرار هيفتح صفحة 404.
  */
 private const val PRIVACY_POLICY_URL =
-    "https://github.com/YOUR_USERNAME/ExpenseTracker/blob/main/docs/PRIVACY_POLICY.md"
+    "https://github.com/mohamedelfert/ExpenseTracker/blob/main/docs/PRIVACY_POLICY.md"
