@@ -26,7 +26,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.fragment.app.FragmentActivity
 import com.localexpense.tracker.security.AppLock
 import com.localexpense.tracker.security.BiometricAuth
 
@@ -42,7 +41,13 @@ fun LockScreen(onUnlocked: () -> Unit) {
     val biometricEnabled = AppLock.isBiometricEnabled(context) && BiometricAuth.isAvailable(context)
 
     fun tryBiometric() {
-        val activity = context as? FragmentActivity ?: return
+        // الـ Context في Compose ممكن يكون ContextWrapper، فالـ cast المباشر
+        // كان بيرجّع null وما يحصلش أي حاجة لما تضغط "استخدم البصمة".
+        val activity = BiometricAuth.findActivity(context)
+        if (activity == null) {
+            error = "تعذّر فتح شاشة البصمة، استخدم الرقم السري"
+            return
+        }
         BiometricAuth.prompt(
             activity = activity,
             onSuccess = onUnlocked,
