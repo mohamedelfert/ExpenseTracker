@@ -1,12 +1,29 @@
 package com.localexpense.tracker.ui
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.localexpense.tracker.viewmodel.FinanceViewModel
@@ -55,7 +72,21 @@ fun AppNavHost(
     onRequestNotificationPermission: () -> Unit,
     onOpenAppSettings: () -> Unit
 ) {
-    NavHost(navController = navController, startDestination = Routes.HOME) {
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+
+    Scaffold(
+        bottomBar = {
+            if (currentRoute in TAB_ROUTES) {
+                BottomNavBar(currentRoute = currentRoute, navController = navController)
+            }
+        }
+    ) { outerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = Routes.HOME,
+            modifier = Modifier.padding(bottom = outerPadding.calculateBottomPadding())
+        ) {
 
         composable(Routes.HOME) {
             HomeScreen(
@@ -234,6 +265,55 @@ fun AppNavHost(
                     )
                 },
                 onBack = { navController.popBackStack() }
+            )
+        }
+        }
+    }
+}
+
+/** الشاشات الرئيسية اللي شريط التنقل السفلي بيظهر فيها بس - مش في شاشات التفاصيل/الفرعية. */
+private val TAB_ROUTES = setOf(Routes.HOME, Routes.TRANSACTIONS, Routes.DASHBOARD, Routes.SETTINGS)
+
+private data class TabItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+
+private val TAB_ITEMS = listOf(
+    TabItem(Routes.HOME, "الرئيسية", Icons.Default.Home),
+    TabItem(Routes.TRANSACTIONS, "الحركات", Icons.Default.List),
+    TabItem(Routes.DASHBOARD, "الإحصائيات", Icons.Default.BarChart),
+    TabItem(Routes.SETTINGS, "الإعدادات", Icons.Default.Tune)
+)
+
+@Composable
+private fun BottomNavBar(currentRoute: String?, navController: NavHostController) {
+    NavigationBar {
+        TAB_ITEMS.forEachIndexed { index, item ->
+            if (index == 2) {
+                // زرار الإضافة السريعة في نص الشريط - مش تبويب دائم، مجرد اختصار.
+                NavigationBarItem(
+                    selected = false,
+                    onClick = { navController.navigate(Routes.ADD_EXPENSE) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = "حركة جديدة") },
+                    label = { Text("إضافة") },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+            val selected = currentRoute == item.route
+            NavigationBarItem(
+                selected = selected,
+                onClick = {
+                    if (!selected) {
+                        navController.navigate(item.route) {
+                            popUpTo(Routes.HOME) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                },
+                icon = { Icon(item.icon, contentDescription = item.label) },
+                label = { Text(item.label) }
             )
         }
     }
