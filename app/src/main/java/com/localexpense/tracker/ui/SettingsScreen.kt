@@ -249,7 +249,7 @@ fun SettingsScreen(
                     }
                     Switch(
                         checked = useDynamicColor,
-                        onCheckedChange = { viewModel.setDynamicColor(it) }
+                        onCheckedChange = { viewModel.setUseDynamicColor(it) }
                     )
                 }
             }

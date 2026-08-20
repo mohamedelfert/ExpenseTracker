@@ -741,3 +741,90 @@ private fun ArchiveDialog(
         }
     )
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ImportRangeDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (Long?, Long?) -> Unit
+) {
+    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale("ar")) }
+    var startMillis by remember { mutableStateOf<Long?>(null) }
+    var endMillis by remember { mutableStateOf<Long?>(null) }
+    var showStartPicker by remember { mutableStateOf(false) }
+    var showEndPicker by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("استيراد حركات من فترة معينة") },
+        text = {
+            Column {
+                Text(
+                    "اختار الفترة اللي عايز تستورد حركاتها من صندوق الوارد. " +
+                        "لو سبت أي تاريخ فاضي، هيتفتح الاستيراد من غير حد لأوله أو آخره.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { showStartPicker = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(startMillis?.let { dateFormat.format(Date(it)) } ?: "من (اختياري)")
+                    }
+                    OutlinedButton(
+                        onClick = { showEndPicker = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(endMillis?.let { dateFormat.format(Date(it)) } ?: "إلى (اختياري)")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(startMillis, endMillis) }) { Text("استيراد") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("إلغاء") }
+        }
+    )
+
+    if (showStartPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = startMillis)
+        DatePickerDialog(
+            onDismissRequest = { showStartPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    startMillis = state.selectedDateMillis
+                    showStartPicker = false
+                }) { Text("تم") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartPicker = false }) { Text("إلغاء") }
+            }
+        ) {
+            DatePicker(state = state)
+        }
+    }
+
+    if (showEndPicker) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = endMillis)
+        DatePickerDialog(
+            onDismissRequest = { showEndPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    endMillis = state.selectedDateMillis
+                    showEndPicker = false
+                }) { Text("تم") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndPicker = false }) { Text("إلغاء") }
+            }
+        ) {
+            DatePicker(state = state)
+        }
+    }
+}

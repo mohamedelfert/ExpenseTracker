@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -332,7 +333,7 @@ fun DonutChart(slices: List<Pair<String, Long>>, modifier: Modifier = Modifier) 
     
     Canvas(modifier = modifier.pointerInput(slices) {
         detectTapGestures { offset ->
-            val center = androidx.compose.ui.geometry.Offset(size.width / 2, size.height / 2)
+            val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
             val angle = (Math.toDegrees(Math.atan2((offset.y - center.y).toDouble(), (offset.x - center.x).toDouble())) + 360) % 360
             // Adjust angle to match -90 start
             val adjustedAngle = (angle + 90) % 360
@@ -473,7 +474,7 @@ fun AnimatedCounter(
     }
 }
 
-fun Modifier.shimmerEffect(): Modifier = androidx.compose.ui.composed {
+fun Modifier.shimmerEffect(): Modifier = composed {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val transition = rememberInfiniteTransition(label = "shimmer")
     val startOffsetX by transition.animateFloat(
