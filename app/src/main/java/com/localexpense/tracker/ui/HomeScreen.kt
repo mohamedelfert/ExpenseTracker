@@ -55,14 +55,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-/**
- * الشاشة الرئيسية: بطاقة ملخص الشهر فوق، اختصارات، وبعدين سجل الحركات
- * كشجرة سنة ← شهر ← بنك.
- *
- * الشجرة دي كانت بتتبني بتحميل كل الحركات وتجميعها في الـ Compose. دلوقتي
- * الإجماليات كلها جاية من تجميعات SQL (صفوف قليلة)، وحركات أي مجموعة
- * بتتحمّل بس لما المستخدم يفتحها — يعني 100 ألف حركة مش بتدخل الذاكرة.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -110,7 +102,6 @@ fun HomeScreen(
     fun monthName(period: String): String =
         runCatching { monthLabelFormat.format(monthKeyParser.parse(period)!!) }.getOrDefault(period)
 
-    // الإجماليات كلها من SQL؛ اللي بيحصل هنا مجرد تجميع صفوف قليلة في شجرة.
     val years = remember(monthTotals, archivedYears) {
         monthTotals
             .groupBy { it.period.take(4) }
@@ -228,171 +219,168 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // ===== بطاقة ملخص الشهر (Hero) =====
-            item {
-                HeroBalanceCard(
-                    title = "مصروفات الشهر الحالي",
-                    amountMinor = currentMonthTotal,
-                    subtitle = "اضغط لعرض التحليلات: التوقّع، المقارنة بالشهر اللي فات، والرؤى",
-                    icon = Icons.Default.BarChart,
-                    onClick = onOpenDashboard,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-            }
-        }
-    }
-
-            // ===== اختصارات =====
-            item {
-                Row(
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    QuickAction(Icons.Default.BarChart, "التحليلات", onOpenDashboard)
-                    QuickAction(Icons.Default.CalendarMonth, "التقويم", onOpenCalendar)
-                    QuickAction(Icons.Default.DateRange, "الدوريات", onOpenRecurring)
-                    QuickAction(Icons.Default.CreditCard, "الأقساط", onOpenInstallments)
-                    QuickAction(Icons.Default.Tune, "قواعد الرسائل", onOpenTestSms)
-                }
-            }
-
-            // ===== أذونات =====
-            val needsPermissionsCard = !notificationAccessGranted ||
-                (BuildConfig.ENABLE_SMS_IMPORT && !smsPermissionGranted)
-            if (needsPermissionsCard) {
                 item {
-                    PermissionsCard(
-                        smsGranted = smsPermissionGranted,
-                        notifGranted = notificationAccessGranted,
-                        onRequestSmsPermission = { showDisclosureDialog = true },
-                        onRequestNotificationPermission = onRequestNotificationPermission,
-                        onOpenAppSettings = onOpenAppSettings,
-                        onOpenRestrictedHelp = { showRestrictedHelp = true }
+                    HeroBalanceCard(
+                        title = "مصروفات الشهر الحالي",
+                        amountMinor = currentMonthTotal,
+                        subtitle = "اضغط لعرض التحليلات: التوقّع، المقارنة بالشهر اللي فات، والرؤى",
+                        icon = Icons.Default.BarChart,
+                        onClick = onOpenDashboard,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
-            }
 
-            // ===== تحذير حركة شاذة =====
-            anomalyWarning?.let { warning ->
+                // ===== اختصارات =====
                 item {
-                    NoticeCard(
-                        text = warning,
-                        container = MaterialTheme.colorScheme.tertiaryContainer,
-                        content = MaterialTheme.colorScheme.onTertiaryContainer,
-                        actionLabel = "تمام",
-                        onAction = { viewModel.dismissAnomalyWarning() }
-                    )
+                    Row(
+                        Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        QuickAction(Icons.Default.BarChart, "التحليلات", onOpenDashboard)
+                        QuickAction(Icons.Default.CalendarMonth, "التقويم", onOpenCalendar)
+                        QuickAction(Icons.Default.DateRange, "الدوريات", onOpenRecurring)
+                        QuickAction(Icons.Default.CreditCard, "الأقساط", onOpenInstallments)
+                        QuickAction(Icons.Default.Tune, "قواعد الرسائل", onOpenTestSms)
+                    }
                 }
-            }
 
-            // تم استبدال زرار الاستيراد بالسحب للتحديث (Pull to refresh)
-
-            importStatusMessage?.let { message ->
-                item {
-                    NoticeCard(
-                        text = message,
-                        container = if (importState is ImportState.Error) {
-                            MaterialTheme.colorScheme.errorContainer
-                        } else {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        },
-                        content = if (importState is ImportState.Error) {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        }
-                    )
+                // ===== أذونات =====
+                val needsPermissionsCard = !notificationAccessGranted ||
+                        (BuildConfig.ENABLE_SMS_IMPORT && !smsPermissionGranted)
+                if (needsPermissionsCard) {
+                    item {
+                        PermissionsCard(
+                            smsGranted = smsPermissionGranted,
+                            notifGranted = notificationAccessGranted,
+                            onRequestSmsPermission = { showDisclosureDialog = true },
+                            onRequestNotificationPermission = onRequestNotificationPermission,
+                            onOpenAppSettings = onOpenAppSettings,
+                            onOpenRestrictedHelp = { showRestrictedHelp = true }
+                        )
+                    }
                 }
-            }
-            cleanupStatusMessage?.let { message ->
-                item {
-                    NoticeCard(
-                        text = message,
-                        container = MaterialTheme.colorScheme.surfaceContainer,
-                        content = MaterialTheme.colorScheme.onSurface
-                    )
+
+                // ===== تحذير حركة شاذة =====
+                anomalyWarning?.let { warning ->
+                    item {
+                        NoticeCard(
+                            text = warning,
+                            container = MaterialTheme.colorScheme.tertiaryContainer,
+                            content = MaterialTheme.colorScheme.onTertiaryContainer,
+                            actionLabel = "تمام",
+                            onAction = { viewModel.dismissAnomalyWarning() }
+                        )
+                    }
                 }
-            }
 
-            // ===== سجل الحركات =====
-            item {
-                SectionHeader(
-                    title = "سجل الحركات",
-                    action = "تنظيف المكرر",
-                    onAction = { showCleanupConfirmDialog = true }
-                )
-            }
-
-            if (years.isEmpty()) {
-                item {
-                    EmptyState(
-                        title = "لسه مفيش حركات",
-                        hint = "الحركات بتظهر هنا تلقائيًا أول ما نلقطها من رسائل أو إشعارات البنك، أو لما تضيف واحدة بنفسك."
-                    )
-                }
-            } else {
-                years.forEach { (year, monthsOfYear) ->
-                    val isYearExpanded = expandedYears[year] ?: true
-                    val isSelected = year in selectedYears
-                    val yearTotal = monthsOfYear.sumOf { it.total }
-
-                    item(key = "year-$year") {
-                        LedgerRow(
-                            title = "سنة $year",
-                            amountMinor = yearTotal,
-                            level = 0,
-                            isExpanded = isYearExpanded,
-                            isSelectionMode = isSelectionMode,
-                            isSelected = isSelected,
-                            onClick = {
-                                if (isSelectionMode) {
-                                    if (isSelected) selectedYears.remove(year) else selectedYears.add(year)
-                                } else {
-                                    expandedYears[year] = !isYearExpanded
-                                }
+                importStatusMessage?.let { message ->
+                    item {
+                        NoticeCard(
+                            text = message,
+                            container = if (importState is ImportState.Error) {
+                                MaterialTheme.colorScheme.errorContainer
+                            } else {
+                                MaterialTheme.colorScheme.secondaryContainer
                             },
-                            onLongClick = {
-                                if (!isSelectionMode && year !in selectedYears) selectedYears.add(year)
+                            content = if (importState is ImportState.Error) {
+                                MaterialTheme.colorScheme.onErrorContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSecondaryContainer
                             }
                         )
                     }
+                }
+                cleanupStatusMessage?.let { message ->
+                    item {
+                        NoticeCard(
+                            text = message,
+                            container = MaterialTheme.colorScheme.surfaceContainer,
+                            content = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
 
-                    if (isYearExpanded && !isSelectionMode) {
-                        monthsOfYear.sortedByDescending { it.period }.forEach { month ->
-                            val isMonthExpanded = expandedMonths[month.period] ?: false
-                            item(key = "month-${month.period}") {
-                                LedgerRow(
-                                    title = monthName(month.period),
-                                    amountMinor = month.total,
-                                    level = 1,
-                                    isExpanded = isMonthExpanded,
-                                    onClick = { expandedMonths[month.period] = !isMonthExpanded }
-                                )
-                            }
+                // ===== سجل الحركات =====
+                item {
+                    SectionHeader(
+                        title = "سجل الحركات",
+                        action = "تنظيف المكرر",
+                        onAction = { showCleanupConfirmDialog = true }
+                    )
+                }
 
-                            if (isMonthExpanded) {
-                                val banks = monthBankTotals.filter { it.period == month.period }
-                                banks.forEach { bank ->
-                                    val bankKey = "${bank.period}-${bank.bankName}"
-                                    val isBankExpanded = expandedBanks[bankKey] ?: false
-                                    item(key = "bank-$bankKey") {
-                                        LedgerRow(
-                                            title = bank.bankName,
-                                            amountMinor = bank.total,
-                                            level = 2,
-                                            isExpanded = isBankExpanded,
-                                            onClick = { expandedBanks[bankKey] = !isBankExpanded }
-                                        )
+                if (years.isEmpty()) {
+                    item {
+                        EmptyState(
+                            title = "لسه مفيش حركات",
+                            hint = "الحركات بتظهر هنا تلقائيًا أول ما نلقطها من رسائل أو إشعارات البنك، أو لما تضيف واحدة بنفسك."
+                        )
+                    }
+                } else {
+                    years.forEach { (year, monthsOfYear) ->
+                        val isYearExpanded = expandedYears[year] ?: true
+                        val isSelected = year in selectedYears
+                        val yearTotal = monthsOfYear.sumOf { it.total }
+
+                        item(key = "year-$year") {
+                            LedgerRow(
+                                title = "سنة $year",
+                                amountMinor = yearTotal,
+                                level = 0,
+                                isExpanded = isYearExpanded,
+                                isSelectionMode = isSelectionMode,
+                                isSelected = isSelected,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        if (isSelected) selectedYears.remove(year) else selectedYears.add(year)
+                                    } else {
+                                        expandedYears[year] = !isYearExpanded
                                     }
-                                    if (isBankExpanded) {
-                                        item(key = "tx-$bankKey") {
-                                            BankTransactions(
-                                                viewModel = viewModel,
-                                                month = bank.period,
-                                                bankName = bank.bankName,
-                                                onOpenTransaction = onOpenTransaction
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode && year !in selectedYears) selectedYears.add(year)
+                                }
+                            )
+                        }
+
+                        if (isYearExpanded && !isSelectionMode) {
+                            monthsOfYear.sortedByDescending { it.period }.forEach { month ->
+                                val isMonthExpanded = expandedMonths[month.period] ?: false
+                                item(key = "month-${month.period}") {
+                                    LedgerRow(
+                                        title = monthName(month.period),
+                                        amountMinor = month.total,
+                                        level = 1,
+                                        isExpanded = isMonthExpanded,
+                                        onClick = { expandedMonths[month.period] = !isMonthExpanded }
+                                    )
+                                }
+
+                                if (isMonthExpanded) {
+                                    val banks = monthBankTotals.filter { it.period == month.period }
+                                    banks.forEach { bank ->
+                                        val bankKey = "${bank.period}-${bank.bankName}"
+                                        val isBankExpanded = expandedBanks[bankKey] ?: false
+                                        item(key = "bank-$bankKey") {
+                                            LedgerRow(
+                                                title = bank.bankName,
+                                                amountMinor = bank.total,
+                                                level = 2,
+                                                isExpanded = isBankExpanded,
+                                                onClick = { expandedBanks[bankKey] = !isBankExpanded }
                                             )
+                                        }
+                                        if (isBankExpanded) {
+                                            item(key = "tx-$bankKey") {
+                                                BankTransactions(
+                                                    viewModel = viewModel,
+                                                    month = bank.period,
+                                                    bankName = bank.bankName,
+                                                    onOpenTransaction = onOpenTransaction
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -401,7 +389,7 @@ fun HomeScreen(
                     }
                 }
             }
-            
+
             PullToRefreshContainer(
                 state = pullToRefreshState,
                 modifier = Modifier.align(Alignment.TopCenter)
@@ -416,8 +404,8 @@ fun HomeScreen(
             text = {
                 Text(
                     "هيتم البحث عن حركات بنفس المبلغ والبنك حصلت خلال فروق زمنية قصيرة " +
-                        "متتالية (حتى لو النص أو اسم الجهة مختلف شوية)، وحذف النسخ الزيادة " +
-                        "والاحتفاظ بأقدم واحدة في كل مجموعة. الإجراء ده مينفعش يتراجع فيه."
+                            "متتالية (حتى لو النص أو اسم الجهة مختلف شوية)، وحذف النسخ الزيادة " +
+                            "والاحتفاظ بأقدم واحدة في كل مجموعة. الإجراء ده مينفعش يتراجع فيه."
                 )
             },
             confirmButton = {
@@ -468,8 +456,6 @@ fun HomeScreen(
     }
 }
 
-/** اختصار سريع: بادچ أيقونة دائري ملوّن فوق تسمية — نفس لغة IconBadge
- * المستخدمة في بطاقات الأرقام، عشان الشاشة كلها تحسّ إنها نظام واحد. */
 @Composable
 private fun QuickAction(icon: ImageVector, label: String, onClick: () -> Unit) {
     Column(
@@ -513,7 +499,6 @@ private fun NoticeCard(
     }
 }
 
-/** صف في شجرة السجل. [level] بيحدد الإزاحة وحجم الخط (سنة/شهر/بنك). */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun LedgerRow(
@@ -582,10 +567,6 @@ private fun LedgerRow(
     }
 }
 
-/**
- * حركات مجموعة واحدة (شهر + بنك). الاستعلام بيشتغل بس لما المجموعة تتفتح،
- * وبيتوقف تلقائيًا لما تتقفل (الـ Flow بينتهي مع خروج الـ composable).
- */
 @Composable
 private fun BankTransactions(
     viewModel: MainViewModel,
@@ -599,9 +580,6 @@ private fun BankTransactions(
     val timeFormatter = remember { SimpleDateFormat("dd MMMM - hh:mm a", Locale("ar")) }
 
     Column(Modifier.padding(start = 52.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)) {
-        // مفيش رسالة "جاري التحميل": المجموعة دي إجماليها معروف أصلاً من
-        // التجميع، فالصفوف بتظهر في إطار واحد والرسالة كانت هتوهم إن فيه
-        // مشكلة في المجموعات الفاضية.
         transactions.forEach { expense ->
             TransactionRow(
                 expense = expense,
@@ -661,7 +639,7 @@ private fun TransactionRow(expense: Expense, timeLabel: String, onClick: () -> U
         }
         Text(
             (if (isCredit) "+" else if (expense.type == TransactionType.TRANSFER) "" else "-") +
-                formatMinor(expense.amountMinor),
+                    formatMinor(expense.amountMinor),
             style = MaterialTheme.typography.labelLarge,
             color = amountColor
         )
@@ -750,101 +728,8 @@ private fun ArchiveDialog(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            TextButton(onClick = { onUnarchive(year) }) { Text("إظهار") }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("تمام") } }
-    )
-}
-
-private enum class ImportRangeOption { LAST_3_MONTHS, LAST_6_MONTHS, CURRENT_YEAR, SPECIFIC_YEAR, ALL_TIME }
-
-@Composable
-private fun ImportRangeDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (startMillis: Long?, endMillis: Long?) -> Unit
-) {
-    var selectedOption by remember { mutableStateOf(ImportRangeOption.LAST_3_MONTHS) }
-    val currentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }
-    val availableYears = remember { (currentYear downTo currentYear - 6).toList() }
-    var selectedYear by remember { mutableStateOf(currentYear) }
-    var yearMenuExpanded by remember { mutableStateOf(false) }
-
-    fun rangeFor(option: ImportRangeOption): Pair<Long?, Long?> {
-        val cal = Calendar.getInstance()
-        return when (option) {
-            ImportRangeOption.LAST_3_MONTHS -> {
-                cal.add(Calendar.MONTH, -3)
-                cal.timeInMillis to null
-            }
-            ImportRangeOption.LAST_6_MONTHS -> {
-                cal.add(Calendar.MONTH, -6)
-                cal.timeInMillis to null
-            }
-            ImportRangeOption.CURRENT_YEAR -> {
-                cal.set(currentYear, Calendar.JANUARY, 1, 0, 0, 0)
-                cal.timeInMillis to null
-            }
-            ImportRangeOption.SPECIFIC_YEAR -> {
-                val start = Calendar.getInstance().apply {
-                    set(selectedYear, Calendar.JANUARY, 1, 0, 0, 0)
-                }.timeInMillis
-                val end = Calendar.getInstance().apply {
-                    set(selectedYear, Calendar.DECEMBER, 31, 23, 59, 59)
-                }.timeInMillis
-                start to end
-            }
-            ImportRangeOption.ALL_TIME -> null to null
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("استيراد الرسائل من") },
-        text = {
-            Column {
-                Text(
-                    "حدد المدى الزمني عشان الاستيراد يبقى أسرع ومش يجيب حركات من سنين مش محتاجها.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Spacer(Modifier.height(8.dp))
-
-                val options = listOf(
-                    ImportRangeOption.LAST_3_MONTHS to "آخر 3 شهور",
-                    ImportRangeOption.LAST_6_MONTHS to "آخر 6 شهور",
-                    ImportRangeOption.CURRENT_YEAR to "السنة الحالية ($currentYear)",
-                    ImportRangeOption.SPECIFIC_YEAR to "سنة محددة",
-                    ImportRangeOption.ALL_TIME to "كل الرسائل (من غير حد)"
-                )
-
-                options.forEach { (option, label) ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = selectedOption == option, onClick = { selectedOption = option })
-                        Text(label, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-
-                AnimatedVisibility(visible = selectedOption == ImportRangeOption.SPECIFIC_YEAR) {
-                    Box(Modifier.padding(start = 40.dp)) {
-                        OutlinedButton(onClick = { yearMenuExpanded = true }) { Text("$selectedYear") }
-                        DropdownMenu(
-                            expanded = yearMenuExpanded,
-                            onDismissRequest = { yearMenuExpanded = false }
-                        ) {
-                            availableYears.forEach { year ->
-                                DropdownMenuItem(
-                                    text = { Text("$year") },
-                                    onClick = {
-                                        selectedYear = year
-                                        yearMenuExpanded = false
-                                    }
-                                )
+                            TextButton(onClick = { onUnarchive(year) }) {
+                                Text("إلغاء الأرشفة")
                             }
                         }
                     }
@@ -852,11 +737,7 @@ private fun ImportRangeDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                val (start, end) = rangeFor(selectedOption)
-                onConfirm(start, end)
-            }) { Text("استيراد") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+            TextButton(onClick = onDismiss) { Text("إغلاق") }
+        }
     )
 }
