@@ -35,11 +35,11 @@ class ExpenseRepository(
 
     suspend fun cleanupDuplicates(dedupWindowMillis: Long = 10 * 60 * 1000L): Int {
         val all = expenseDao.getAllOnce()
-        val lastSeenTimestamp = HashMap<Pair<Double, String>, Long>()
+        val lastSeenTimestamp = HashMap<Pair<Long, String>, Long>()
         val toDelete = mutableListOf<Expense>()
 
         for (expense in all) {
-            val key = expense.amount to expense.bankName
+            val key = expense.amountMinor to expense.bankName
             val previousTimestamp = lastSeenTimestamp[key]
             if (previousTimestamp != null && expense.timestamp - previousTimestamp <= dedupWindowMillis) {
                 toDelete += expense

@@ -7,5 +7,5 @@ import androidx.room.PrimaryKey
 data class Budget(
     @PrimaryKey
     val categoryName: String,
-    val limitAmount: Double
+    val limitMinor: Long           // حد الميزانية بوحدات صغرى (قروش)
 )

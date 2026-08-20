@@ -13,6 +13,7 @@ import com.localexpense.tracker.data.RecurringExpense
 import com.localexpense.tracker.data.SourceTotal
 import com.localexpense.tracker.parser.SmsImporter
 import com.localexpense.tracker.parser.SmsParser
+import com.localexpense.tracker.util.parseAmountMinor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,14 +37,14 @@ sealed class CleanupState {
 
 data class RuleTestResult(
     val matched: Boolean,
-    val amount: Double? = null,
+    val amountMinor: Long? = null,
     val merchant: String? = null,
     val bankName: String? = null
 )
 
 data class SmsTestResult(
     val matched: Boolean,
-    val amount: Double? = null,
+    val amountMinor: Long? = null,
     val merchant: String? = null,
     val bankName: String? = null,
     val categoryName: String? = null
@@ -80,9 +81,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.observeTotalsByCategoryBetween(s, e)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val monthTotal: StateFlow<Double> = monthTotalsByCategory
+    val monthTotal: StateFlow<Long> = monthTotalsByCategory
         .map { list -> list.sumOf { it.total } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     val categories: StateFlow<List<Category>> = repository.observeCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -123,7 +124,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (currentDay >= recurring.dayOfMonth && recurring.lastAddedMonth != currentMonthStr) {
                     val timestamp = cal.timeInMillis
                     val expense = Expense(
-                        amount = recurring.amount,
+                        amountMinor = recurring.amountMinor,
                         merchant = recurring.merchant,
                         timestamp = timestamp,
                         bankName = recurring.bankName,
@@ -169,12 +170,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteCategory(category) }
     }
 
-    fun addManualExpense(amount: Double, merchant: String, category: String = "عام") {
+    fun addManualExpense(amountMinor: Long, merchant: String, category: String = "عام") {
         viewModelScope.launch {
             val timestamp = System.currentTimeMillis()
             repository.insertExpense(
                 Expense(
-                    amount = amount,
+                    amountMinor = amountMinor,
                     merchant = merchant,
                     bankName = "يدوي",
                     timestamp = timestamp,
@@ -194,8 +195,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun saveExpense(amount: Double, merchant: String, category: String) {
-        addManualExpense(amount, merchant, category)
+    fun saveExpense(amountMinor: Long, merchant: String, category: String) {
+        addManualExpense(amountMinor, merchant, category)
     }
 
     fun updateExpense(expense: Expense) {
@@ -223,19 +224,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setBudget(categoryName: String, limitAmount: Double) {
-        viewModelScope.launch { repository.setBudget(Budget(categoryName, limitAmount)) }
+    fun setBudget(categoryName: String, limitMinor: Long) {
+        viewModelScope.launch { repository.setBudget(Budget(categoryName, limitMinor)) }
     }
 
     fun deleteBudget(categoryName: String) {
         viewModelScope.launch { repository.deleteBudget(categoryName) }
     }
 
-    fun addRecurringExpense(amount: Double, merchant: String, bankName: String, categoryName: String, dayOfMonth: Int) {
+    fun addRecurringExpense(amountMinor: Long, merchant: String, bankName: String, categoryName: String, dayOfMonth: Int) {
         viewModelScope.launch {
             repository.insertRecurringExpense(
                 RecurringExpense(
-                    amount = amount,
+                    amountMinor = amountMinor,
                     merchant = merchant,
                     bankName = bankName,
                     categoryName = categoryName,
@@ -269,7 +270,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             ?: return SmsTestResult(matched = false)
         return SmsTestResult(
             matched = true,
-            amount = result.amount,
+            amountMinor = result.amountMinor,
             merchant = result.merchant,
             bankName = result.bankName,
             categoryName = result.categoryName
@@ -286,8 +287,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val amountRegex = Regex(rule.amountPattern, RegexOption.IGNORE_CASE)
             val amountMatch = amountRegex.find(body)
-            val amountStr = amountMatch?.groupValues?.getOrNull(1)?.replace(",", "")
-            val amount = amountStr?.toDoubleOrNull() ?: return RuleTestResult(matched = false)
+            val amountMinor = amountMatch?.groupValues?.getOrNull(1)
+                ?.let { parseAmountMinor(it) } ?: return RuleTestResult(matched = false)
 
             var merchant: String? = null
             if (rule.merchantPattern.isNotBlank()) {
@@ -298,7 +299,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             return RuleTestResult(
                 matched = true,
-                amount = amount,
+                amountMinor = amountMinor,
                 merchant = merchant,
                 bankName = rule.bankName
             )

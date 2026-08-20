@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 data class RecurringExpense(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val amount: Double,
+    val amountMinor: Long,          // المبلغ بوحدات صغرى (قروش)
     val merchant: String,
     val bankName: String,
     val categoryName: String,

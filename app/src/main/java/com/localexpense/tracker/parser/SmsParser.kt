@@ -2,6 +2,7 @@ package com.localexpense.tracker.parser
 
 import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.SmsRule
+import com.localexpense.tracker.util.parseAmountMinor
 
 object SmsParser {
 
@@ -35,7 +36,7 @@ object SmsParser {
         // 2. استخراج المبلغ (دعم العملة المصرية EGP, LE, ج.م)
         val amountRegex = Regex("""(?:مبلغ|EGP|LE|LE\.|ج\.م|جم)\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
         val amountMatch = amountRegex.find(body) ?: Regex("""([\d,]+(?:\.\d{1,2})?)\s*(?:EGP|LE|ج\.م|جم)""", RegexOption.IGNORE_CASE).find(body)
-        val amount = amountMatch?.groupValues?.getOrNull(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
+        val amountMinor = amountMatch?.groupValues?.getOrNull(1)?.let { parseAmountMinor(it) } ?: return null
 
         // 3. استخراج اسم الجهة (Merchant)
         val merchant = extractMerchant(body)
@@ -47,7 +48,7 @@ object SmsParser {
         val categoryName = detectCategory(body, merchant)
 
         return Expense(
-            amount = amount,
+            amountMinor = amountMinor,
             merchant = merchant,
             bankName = bankName,
             timestamp = timestamp,
@@ -79,10 +80,9 @@ object SmsParser {
                 }
 
                 val amountRegex = Regex(rule.amountPattern, RegexOption.IGNORE_CASE)
-                val amount = amountRegex.find(body)
+                val amountMinor = amountRegex.find(body)
                     ?.groupValues?.getOrNull(1)
-                    ?.replace(",", "")
-                    ?.toDoubleOrNull() ?: continue
+                    ?.let { parseAmountMinor(it) } ?: continue
 
                 val merchant = if (rule.merchantPattern.isNotBlank()) {
                     Regex(rule.merchantPattern, RegexOption.IGNORE_CASE)
@@ -91,7 +91,7 @@ object SmsParser {
                 } else null
 
                 return Expense(
-                    amount = amount,
+                    amountMinor = amountMinor,
                     merchant = merchant ?: extractMerchant(body),
                     bankName = rule.bankName,
                     timestamp = timestamp,

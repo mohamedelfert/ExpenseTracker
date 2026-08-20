@@ -55,6 +55,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.localexpense.tracker.data.Category
 import com.localexpense.tracker.data.CategoryTotal
+import com.localexpense.tracker.money.formatMinor
+import com.localexpense.tracker.money.minorToPlainDecimal
+import com.localexpense.tracker.util.parseAmountMinor
 import com.localexpense.tracker.viewmodel.MainViewModel
 import com.localexpense.tracker.util.CsvExporter
 import kotlinx.coroutines.launch
@@ -98,7 +101,8 @@ fun DashboardScreen(
         }
     }
 
-    val grandTotal = totalsByCategory.sumOf { it.total }.coerceAtLeast(0.01)
+    // إجمالي بوحدات صغرى؛ 1 كحد أدنى عشان نتجنب القسمة على صفر في النِسَب.
+    val grandTotal = totalsByCategory.sumOf { it.total }.coerceAtLeast(1L)
 
     Scaffold(
         topBar = {
@@ -136,7 +140,7 @@ fun DashboardScreen(
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("الإجمالي", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
-                        Text("%.0f ج.م".format(grandTotal), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(formatMinor(grandTotal, withDecimals = false), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(Modifier.height(16.dp))
@@ -163,8 +167,8 @@ fun DashboardScreen(
                     CategoryTotalRow(
                         item = item,
                         color = ChartPalette[index % ChartPalette.size],
-                        percentage = (item.total / grandTotal * 100),
-                        budgetLimit = budget?.limitAmount,
+                        percentage = (item.total.toDouble() / grandTotal * 100),
+                        budgetLimitMinor = budget?.limitMinor,
                         onSetBudget = { selectedCategoryForBudget = item.categoryName }
                     )
                 }
@@ -198,13 +202,13 @@ fun DashboardScreen(
     }
 
     selectedCategoryForBudget?.let { categoryName ->
-        val currentLimit = budgets.find { it.categoryName == categoryName }?.limitAmount ?: 0.0
+        val currentLimit = budgets.find { it.categoryName == categoryName }?.limitMinor ?: 0L
         SetBudgetDialog(
             categoryName = categoryName,
-            currentLimit = currentLimit,
+            currentLimitMinor = currentLimit,
             onDismiss = { selectedCategoryForBudget = null },
             onConfirm = { amount ->
-                if (amount > 0) {
+                if (amount > 0L) {
                     viewModel.setBudget(categoryName, amount)
                 } else {
                     viewModel.deleteBudget(categoryName)
@@ -216,13 +220,13 @@ fun DashboardScreen(
 }
 
 @Composable
-private fun DonutChart(totals: List<CategoryTotal>, grandTotal: Double, modifier: Modifier = Modifier) {
+private fun DonutChart(totals: List<CategoryTotal>, grandTotal: Long, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         var startAngle = -90f
         val strokeWidth = 40f
-        
+
         totals.forEachIndexed { index, item ->
-            val sweepAngle = ((item.total / grandTotal) * 360f).toFloat()
+            val sweepAngle = ((item.total.toDouble() / grandTotal) * 360f).toFloat()
             drawArc(
                 color = ChartPalette[index % ChartPalette.size],
                 startAngle = startAngle,
@@ -236,7 +240,7 @@ private fun DonutChart(totals: List<CategoryTotal>, grandTotal: Double, modifier
 }
 
 @Composable
-private fun CategoryTotalRow(item: CategoryTotal, color: Color, percentage: Double, budgetLimit: Double?, onSetBudget: () -> Unit) {
+private fun CategoryTotalRow(item: CategoryTotal, color: Color, percentage: Double, budgetLimitMinor: Long?, onSetBudget: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -263,7 +267,7 @@ private fun CategoryTotalRow(item: CategoryTotal, color: Color, percentage: Doub
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "%.2f ج.م".format(item.total),
+                    formatMinor(item.total),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
@@ -274,9 +278,9 @@ private fun CategoryTotalRow(item: CategoryTotal, color: Color, percentage: Doub
             }
         }
         
-        if (budgetLimit != null && budgetLimit > 0) {
+        if (budgetLimitMinor != null && budgetLimitMinor > 0) {
             Spacer(modifier = Modifier.height(6.dp))
-            val progress = (item.total / budgetLimit).toFloat().coerceIn(0f, 1f)
+            val progress = (item.total.toDouble() / budgetLimitMinor).toFloat().coerceIn(0f, 1f)
             val progressColor = when {
                 progress >= 1f -> Color(0xFFE53935)
                 progress >= 0.8f -> Color(0xFFFB8C00)
@@ -293,7 +297,7 @@ private fun CategoryTotalRow(item: CategoryTotal, color: Color, percentage: Doub
                     trackColor = Color(0xFF263238)
                 )
                 Text(
-                    text = "من %.0f".format(budgetLimit),
+                    text = "من ${formatMinor(budgetLimitMinor, withDecimals = false)}",
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(start = 8.dp),
                     color = Color.Gray
@@ -348,11 +352,11 @@ private fun AddCategoryDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit
 @Composable
 private fun SetBudgetDialog(
     categoryName: String,
-    currentLimit: Double,
+    currentLimitMinor: Long,
     onDismiss: () -> Unit,
-    onConfirm: (Double) -> Unit
+    onConfirm: (Long) -> Unit
 ) {
-    var amountText by remember { mutableStateOf(if (currentLimit > 0) currentLimit.toString() else "") }
+    var amountText by remember { mutableStateOf(if (currentLimitMinor > 0) minorToPlainDecimal(currentLimitMinor) else "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -373,9 +377,9 @@ private fun SetBudgetDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { 
-                val amount = amountText.toDoubleOrNull() ?: 0.0
-                onConfirm(amount) 
+            TextButton(onClick = {
+                val amount = parseAmountMinor(amountText) ?: 0L
+                onConfirm(amount)
             }) {
                 Text("حفظ")
             }

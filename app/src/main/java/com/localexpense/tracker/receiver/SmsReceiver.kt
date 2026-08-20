@@ -37,7 +37,7 @@ class SmsReceiver : BroadcastReceiver() {
 
                         if (dao.insertIfNotDuplicate(expense)) {
                             NotificationHelper.showExpenseCapturedNotification(
-                                context, expense.amount, expense.merchant, expense.bankName
+                                context, expense.amountMinor, expense.merchant, expense.bankName
                             )
                             BudgetAlertChecker.checkAndNotify(
                                 context, dao, db.budgetDao(), expense.categoryName, expense.timestamp

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.BuildConfig
 import com.localexpense.tracker.data.Expense
+import com.localexpense.tracker.money.formatMinor
 import com.localexpense.tracker.viewmodel.CleanupState
 import com.localexpense.tracker.viewmodel.ImportState
 import com.localexpense.tracker.viewmodel.MainViewModel
@@ -102,7 +103,7 @@ fun HomeScreen(
         expenses.filter { expense ->
             expCal.timeInMillis = expense.timestamp
             expCal.get(Calendar.MONTH) == currentMonth && expCal.get(Calendar.YEAR) == currentYear
-        }.sumOf { it.amount }
+        }.sumOf { it.amountMinor }
     }
 
     // تجميع البيانات وتصفية السنوات المؤرشفة
@@ -122,7 +123,7 @@ fun HomeScreen(
     val archivedYearTotals = remember(expenses, archivedYears.toList()) {
         expenses.groupBy { yearFormatter.format(Date(it.timestamp)) }
             .filterKeys { year -> year in archivedYears }
-            .mapValues { (_, yearExpenses) -> yearExpenses.sumOf { it.amount } }
+            .mapValues { (_, yearExpenses) -> yearExpenses.sumOf { it.amountMinor } }
             .toList()
             .sortedByDescending { it.first }
     }
@@ -341,7 +342,7 @@ fun HomeScreen(
                     Text("إجمالي مصروفات الشهر الحالي", color = Color.Gray, fontSize = 13.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${String.format(Locale.US, "%.2f", currentMonthTotal)} ج.م",
+                        text = formatMinor(currentMonthTotal),
                         style = MaterialTheme.typography.headlineSmall.copy(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF80CBC4)
@@ -367,7 +368,7 @@ fun HomeScreen(
 
                         item(key = "year-$year") {
                             val yearTotal = remember(monthsMap) {
-                                monthsMap.values.flatMap { it.values.flatten() }.sumOf { it.amount }
+                                monthsMap.values.flatMap { it.values.flatten() }.sumOf { it.amountMinor }
                             }
 
                             HeaderCard(
@@ -401,7 +402,7 @@ fun HomeScreen(
 
                                 item(key = "month-$monthKey") {
                                     val monthTotal = remember(banksMap) {
-                                        banksMap.values.flatten().sumOf { it.amount }
+                                        banksMap.values.flatten().sumOf { it.amountMinor }
                                     }
                                     HeaderCard(
                                         title = monthName,
@@ -511,7 +512,7 @@ private fun PermissionsCard(
 
 @Composable
 private fun ArchiveDialog(
-    archivedYearTotals: List<Pair<String, Double>>,
+    archivedYearTotals: List<Pair<String, Long>>,
     onUnarchive: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -542,7 +543,7 @@ private fun ArchiveDialog(
                             Column {
                                 Text("سنة $year", color = Color.White, fontWeight = FontWeight.Medium)
                                 Text(
-                                    "${String.format(Locale.US, "%.2f", total)} ج.م",
+                                    formatMinor(total),
                                     color = Color(0xFF80CBC4),
                                     fontSize = 12.sp
                                 )
@@ -682,7 +683,7 @@ private fun ImportRangeDialog(
 @Composable
 private fun HeaderCard(
     title: String,
-    amount: Double,
+    amount: Long,
     isExpanded: Boolean,
     isSelectionMode: Boolean,
     isSelected: Boolean,
@@ -740,7 +741,7 @@ private fun HeaderCard(
                 )
             }
             Text(
-                text = "${String.format(Locale.US, "%.2f", amount)} ج.م",
+                text = formatMinor(amount),
                 fontWeight = FontWeight.Bold,
                 color = amountColor,
                 fontSize = 14.sp
@@ -755,7 +756,7 @@ private fun BankExpensesCard(
     expenses: List<Expense>,
     timeFormatter: SimpleDateFormat
 ) {
-    val bankTotal = remember(expenses) { expenses.sumOf { it.amount } }
+    val bankTotal = remember(expenses) { expenses.sumOf { it.amountMinor } }
 
     Card(
         modifier = Modifier
@@ -777,7 +778,7 @@ private fun BankExpensesCard(
                     fontSize = 15.sp
                 )
                 Text(
-                    text = "${String.format(Locale.US, "%.2f", bankTotal)} ج.م",
+                    text = formatMinor(bankTotal),
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFB0BEC5),
                     fontSize = 13.sp
@@ -829,7 +830,7 @@ private fun BankExpensesCard(
                     }
 
                     Text(
-                        text = "-${String.format(Locale.US, "%.2f", expense.amount)} ج.م",
+                        text = "-${formatMinor(expense.amountMinor)}",
                         color = Color(0xFFFF8A80),
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp

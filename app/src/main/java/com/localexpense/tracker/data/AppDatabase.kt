@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -11,9 +12,10 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 @Database(
     entities = [Expense::class, Category::class, SmsRule::class, Budget::class, RecurringExpense::class],
-    version = 5,
-    exportSchema = false
+    version = 6,
+    exportSchema = true
 )
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun expenseDao(): ExpenseDao
@@ -52,7 +54,13 @@ abstract class AppDatabase : RoomDatabase() {
                     "expense_tracker_db"
                 )
                     .openHelperFactory(factory)
-                    .fallbackToDestructiveMigration()
+                    // ترقية حقيقية تحافظ على بيانات النسخة 5 (تحويل المبالغ لوحدات صغرى).
+                    .addMigrations(MIGRATION_5_6)
+                    // النسخ 1-4 القديمة معندناش مخططها (exportSchema كان false ومفيش
+                    // git history)، فبنسمح بإعادة إنشاء قاعدة البيانات لها فقط - نفس
+                    // سلوك fallbackToDestructiveMigration() القديم للنسخ دي بالظبط،
+                    // لكن دلوقتي بيانات النسخة 5 (الأغلبية) بتتحافظ عليها فعلاً.
+                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4)
                     .build()
                 INSTANCE = instance
 

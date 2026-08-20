@@ -59,7 +59,7 @@ class ExpenseNotificationListener : NotificationListenerService() {
 
                 if (dao.insertIfNotDuplicate(expense)) {
                     NotificationHelper.showExpenseCapturedNotification(
-                        applicationContext, expense.amount, expense.merchant, expense.bankName
+                        applicationContext, expense.amountMinor, expense.merchant, expense.bankName
                     )
                     BudgetAlertChecker.checkAndNotify(
                         applicationContext, dao, db.budgetDao(), expense.categoryName, expense.timestamp

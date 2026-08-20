@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.localexpense.tracker.data.SmsRule
+import com.localexpense.tracker.money.formatMinor
 import com.localexpense.tracker.viewmodel.MainViewModel
 import com.localexpense.tracker.viewmodel.RuleTestResult
 
@@ -161,7 +162,7 @@ fun RuleEditScreen(
                             )
                         }
                         if (result.matched) {
-                            Text("المبلغ: ${result.amount}")
+                            Text("المبلغ: ${result.amountMinor?.let { formatMinor(it) } ?: "-"}")
                             Text("الجهة: ${result.merchant ?: "لم يتم استخراجها"}")
                         }
                     }
