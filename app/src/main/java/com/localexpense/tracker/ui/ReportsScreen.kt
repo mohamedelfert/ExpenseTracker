@@ -55,7 +55,8 @@ fun ReportsScreen(
         ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
         val kind = pendingKind
-        if (uri != null && kind != null) finance.exportCsvReport(uri, kind)
+        // uri = null يعني المستخدم رجع من غير ما يختار ملف - مش خطأ.
+        if (kind != null && uri != null) finance.exportCsvReport(uri, kind)
     }
 
     val transactionsLauncher = rememberLauncherForActivityResult(
@@ -118,7 +119,10 @@ fun ReportsScreen(
             }
             item {
                 TextButton(
-                    onClick = { transactionsLauncher.launch("transactions.csv") },
+                    onClick = {
+                        runCatching { transactionsLauncher.launch("transactions.csv") }
+                            .onFailure { finance.exportTransactionsCsv(null) }
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp)
                 ) { Text("تصدير حركات الشهر (CSV)") }
             }
@@ -135,7 +139,11 @@ fun ReportsScreen(
                     Text(kind.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                     TextButton(onClick = {
                         pendingKind = kind
-                        csvLauncher.launch("${kind.name.lowercase()}.csv")
+                        // بعض الأجهزة مفيهاش منتقي ملفات، و launch() ساعتها
+                        // بترمي ActivityNotFoundException وبتقفل التطبيق.
+                        // البديل: نصدّر على مجلد التطبيق ونقول للمستخدم المسار.
+                        runCatching { csvLauncher.launch("${kind.name.lowercase()}.csv") }
+                            .onFailure { finance.exportCsvReport(null, kind) }
                     }) { Text("CSV") }
                 }
             }
@@ -143,7 +151,10 @@ fun ReportsScreen(
             item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
             item {
                 TextButton(
-                    onClick = { pdfLauncher.launch("financial-report.pdf") },
+                    onClick = {
+                        runCatching { pdfLauncher.launch("financial-report.pdf") }
+                            .onFailure { finance.exportPdfReport(null) }
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp)
                 ) { Text("تقرير PDF كامل للشهر") }
             }

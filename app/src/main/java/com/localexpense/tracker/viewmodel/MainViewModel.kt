@@ -26,6 +26,7 @@ import com.localexpense.tracker.domain.isAnomalous
 import com.localexpense.tracker.money.formatMinor
 import com.localexpense.tracker.parser.SmsImporter
 import com.localexpense.tracker.parser.SmsParser
+import com.localexpense.tracker.util.ExportSink
 import com.localexpense.tracker.util.monthRange
 import com.localexpense.tracker.util.parseAmountMinor
 import kotlinx.coroutines.Dispatchers
@@ -478,6 +479,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 BackupState.Error("فشل الحفظ: ${e.message}")
             }
         }
+    }
+
+    /**
+     * نسخة احتياطية لمجلد التطبيق - بديل لما منتقي الملفات مش متاح على الجهاز.
+     */
+    fun exportBackupToAppFolder() {
+        viewModelScope.launch {
+            _backupState.value = BackupState.Running
+            _backupState.value = try {
+                val text = BackupManager.encodeToText(getApplication())
+                val path = withContext(Dispatchers.IO) {
+                    ExportSink.write(
+                        getApplication(),
+                        BackupManager.suggestedFileName(),
+                        text.toByteArray(Charsets.UTF_8)
+                    )
+                }
+                if (path != null) {
+                    settings.lastBackupAt = System.currentTimeMillis()
+                    BackupState.Done("منتقي الملفات مش متاح، فالنسخة اتحفظت في:\n$path")
+                } else {
+                    BackupState.Error("فشل الحفظ: مفيش مكان متاح للكتابة")
+                }
+            } catch (e: Exception) {
+                BackupState.Error("فشل الحفظ: ${e.message ?: "خطأ غير متوقع"}")
+            }
+        }
+    }
+
+    /** الاسترجاع محتاج ملف يختاره المستخدم، فمفيش بديل تلقائي له. */
+    fun reportPickerUnavailable() {
+        _backupState.value = BackupState.Error(
+            "منتقي الملفات مش متاح على الجهاز ده، فمش ممكن نختار ملف نسخة للاسترجاع."
+        )
     }
 
     fun restoreBackup(uri: Uri) {

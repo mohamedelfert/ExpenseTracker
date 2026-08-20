@@ -14,6 +14,7 @@ import com.localexpense.tracker.domain.MonthSummary
 import com.localexpense.tracker.domain.forecast
 import com.localexpense.tracker.domain.generateInsights
 import com.localexpense.tracker.util.CsvExporter
+import com.localexpense.tracker.util.ExportSink
 import com.localexpense.tracker.util.PdfReport
 import com.localexpense.tracker.util.monthLabel
 import com.localexpense.tracker.util.monthRange
@@ -122,74 +123,121 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         INSTALLMENTS("الأقساط")
     }
 
-    fun exportCsvReport(uri: Uri, kind: ReportKind) {
+    /**
+     * تسليم الملف المصدَّر.
+     *
+     * [uri] = الملف اللي المستخدم اختاره من منتقي النظام، أو null لو المنتقي
+     * مش متاح على الجهاز. في الحالتين مفيش استثناء بيطلع للـ coroutine: أي
+     * فشل بيرجع كرسالة للمستخدم، لأن استثناء جوه viewModelScope بيقفل التطبيق.
+     */
+    private suspend fun deliver(uri: Uri?, fileName: String, bytes: ByteArray): String =
+        withContext(Dispatchers.IO) {
+            if (uri != null) {
+                val wrote = runCatching {
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
+                        it.write(bytes)
+                    } ?: error("تعذّر فتح الملف للكتابة")
+                }
+                if (wrote.isSuccess) return@withContext "تم التصدير بنجاح"
+            }
+
+            val path = ExportSink.write(getApplication(), fileName, bytes)
+            if (path != null) {
+                "منتقي الملفات مش متاح على الجهاز، فالملف اتحفظ في:\n$path"
+            } else {
+                "فشل التصدير: مفيش مكان متاح للكتابة"
+            }
+        }
+
+    /**
+     * تقرير مجمّع بصيغة CSV. [uri] = null معناها منتقي الملفات مش متاح،
+     * فالملف بيروح للمكان الاحتياطي.
+     */
+    fun exportCsvReport(uri: Uri?, kind: ReportKind) {
         viewModelScope.launch {
-            val text = withContext(Dispatchers.IO) { buildReportRows(kind) }
-                .let { rows -> CsvExporter.aggregateToCsv(kind.label, rows) }
-            writeText(uri, text, "تم تصدير تقرير \"${kind.label}\" بصيغة CSV")
+            _exportMessage.value = try {
+                val rows = withContext(Dispatchers.IO) { buildReportRows(kind) }
+                val text = CsvExporter.aggregateToCsv(kind.label, rows)
+                deliver(uri, "${kind.name.lowercase()}.csv", text.toByteArray(Charsets.UTF_8))
+            } catch (e: Exception) {
+                "فشل تصدير \"${kind.label}\": ${e.message ?: "خطأ غير متوقع"}"
+            }
         }
     }
 
-    fun exportTransactionsCsv(uri: Uri) {
+    fun exportTransactionsCsv(uri: Uri?) {
         viewModelScope.launch {
-            val text = withContext(Dispatchers.IO) {
-                val range = monthRangeOffset(_monthOffset.value)
-                val expenses = repository.searchOnce(
-                    com.localexpense.tracker.data.TransactionFilter(
-                        startTime = range.start,
-                        endTime = range.end,
-                        limit = 100_000
+            _exportMessage.value = try {
+                val text = withContext(Dispatchers.IO) {
+                    val range = monthRangeOffset(_monthOffset.value)
+                    val expenses = repository.searchOnce(
+                        com.localexpense.tracker.data.TransactionFilter(
+                            startTime = range.start,
+                            endTime = range.end,
+                            limit = 100_000
+                        )
                     )
-                )
-                CsvExporter.exportToCsv(
-                    expenses = expenses,
-                    includeRawText = settings.includeRawTextInExport
-                )
+                    CsvExporter.exportToCsv(
+                        expenses = expenses,
+                        includeRawText = settings.includeRawTextInExport
+                    )
+                }
+                deliver(uri, "transactions.csv", text.toByteArray(Charsets.UTF_8))
+            } catch (e: Exception) {
+                "فشل تصدير الحركات: ${e.message ?: "خطأ غير متوقع"}"
             }
-            writeText(uri, text, "تم تصدير حركات الشهر بصيغة CSV")
         }
     }
 
-    fun exportPdfReport(uri: Uri) {
+    fun exportPdfReport(uri: Uri?) {
         viewModelScope.launch {
-            val context = _context.value ?: return@launch
-            withContext(Dispatchers.IO) {
-                val sections = listOf(
-                    PdfReport.Section(
-                        "الملخص",
-                        listOf(
-                            "الدخل" to context.summary.incomeMinor,
-                            "المصروفات" to context.summary.expenseMinor,
-                            "الاسترداد" to context.summary.refundMinor,
-                            "الصافي" to context.summary.netCashFlowMinor,
-                            "المتوقّع بنهاية الشهر" to context.forecast.projectedMinor
-                        )
-                    ),
-                    PdfReport.Section("حسب الفئة", context.categoryTotals.toList().sortedByDescending { it.second }),
-                    PdfReport.Section("أعلى الجهات", context.topMerchants),
-                    PdfReport.Section(
-                        "الميزانيات",
-                        context.categoryBudgetProgress.map { (name, progress) ->
-                            "$name (${progress.percentUsed}%)" to progress.spentMinor
-                        }
-                    ),
-                    PdfReport.Section(
-                        "الالتزامات الشهرية",
-                        listOf(
-                            "اشتراكات" to context.subscriptionsMonthlyMinor,
-                            "أقساط" to context.installmentsMonthlyMinor
+            val context = _context.value
+            if (context == null) {
+                _exportMessage.value = "أرقام الشهر لسه بتتحسب، جرّب تاني بعد لحظة"
+                return@launch
+            }
+
+            _exportMessage.value = try {
+                val bytes = withContext(Dispatchers.IO) {
+                    PdfReport.render(
+                        title = "تقرير مالي - ${context.monthLabel}",
+                        subtitle = "تم إنشاؤه محليًا على الجهاز",
+                        sections = listOf(
+                            PdfReport.Section(
+                                "الملخص",
+                                listOf(
+                                    "الدخل" to context.summary.incomeMinor,
+                                    "المصروفات" to context.summary.expenseMinor,
+                                    "الاسترداد" to context.summary.refundMinor,
+                                    "الصافي" to context.summary.netCashFlowMinor,
+                                    "المتوقّع بنهاية الشهر" to context.forecast.projectedMinor
+                                )
+                            ),
+                            PdfReport.Section(
+                                "حسب الفئة",
+                                context.categoryTotals.toList().sortedByDescending { it.second }
+                            ),
+                            PdfReport.Section("أعلى الجهات", context.topMerchants),
+                            PdfReport.Section(
+                                "الميزانيات",
+                                context.categoryBudgetProgress.map { (name, progress) ->
+                                    "$name (${progress.percentUsed}%)" to progress.spentMinor
+                                }
+                            ),
+                            PdfReport.Section(
+                                "الالتزامات الشهرية",
+                                listOf(
+                                    "اشتراكات" to context.subscriptionsMonthlyMinor,
+                                    "أقساط" to context.installmentsMonthlyMinor
+                                )
+                            )
                         )
                     )
-                )
-                PdfReport.write(
-                    context = getApplication(),
-                    uri = uri,
-                    title = "تقرير مالي - ${context.monthLabel}",
-                    subtitle = "تم إنشاؤه محليًا على الجهاز",
-                    sections = sections
-                )
+                }
+                deliver(uri, "financial-report.pdf", bytes)
+            } catch (e: Exception) {
+                "فشل تصدير PDF: ${e.message ?: "خطأ غير متوقع"}"
             }
-            _exportMessage.value = "تم تصدير تقرير PDF"
         }
     }
 
@@ -215,17 +263,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             ReportKind.SUBSCRIPTIONS -> listOf("إجمالي الاشتراكات الشهرية" to context.subscriptionsMonthlyMinor)
             ReportKind.INSTALLMENTS -> listOf("إجمالي الأقساط الشهرية" to context.installmentsMonthlyMinor)
         }
-    }
-
-    private suspend fun writeText(uri: Uri, text: String, successMessage: String) {
-        val result = withContext(Dispatchers.IO) {
-            runCatching {
-                getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
-                    it.write(text.toByteArray(Charsets.UTF_8))
-                } ?: error("تعذّر فتح الملف")
-            }
-        }
-        _exportMessage.value = if (result.isSuccess) successMessage else "فشل التصدير: ${result.exceptionOrNull()?.message}"
     }
 
     fun clearExportMessage() {

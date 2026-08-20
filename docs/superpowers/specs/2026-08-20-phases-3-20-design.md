@@ -184,14 +184,28 @@ not just "a wallet". Adaptive icon with a gradient vector background, plus a **m
 Android 13+ themed icons work. The notification glyph is the same mark simplified to 24dp as a white
 mask. All vectors — no raster assets, no icon library.
 
+## Export delivery
+
+Every export (report CSV, transactions CSV, PDF, backup JSON) is built into bytes first, then
+delivered by one function. Delivery tries the file the user picked, and if the device has no
+document picker at all — `launch()` throws `ActivityNotFoundException` on some ROMs, which used to
+crash the app the moment the export button was tapped — it writes to the app's external files
+directory and reports the exact path. Nothing in an export path can throw into a coroutine scope
+any more; failures come back as messages.
+
 ## Known gaps (deliberate)
 
 - Not built, not run — see above. No claim of verification.
 - Multi-currency stays schema-only; no FX conversion.
 - Room Paging is not used; list queries are capped and all analytics are SQL aggregates.
 - Cloud backup is out of scope (backup writes to a user-chosen file via the system picker).
-- v1–v4 databases still fall back to a destructive migration — their schemas do not exist in any
-  form, so a data-preserving path cannot be written. v5+ is preserved.
+- ~~v1–v4 databases fall back to a destructive migration~~ **Closed.** `LegacyMigrations.kt` adds a
+  path for every old version: since their schemas are genuinely unknown, the migration *reads* the
+  database at runtime (`sqlite_master` + `PRAGMA table_info`), tries a list of candidate table and
+  column names, copies what exists and defaults what does not. It never throws — a table that
+  cannot be salvaged is recreated empty, because crashing on every launch is worse than one missing
+  table. `fallbackToDestructiveMigrationFrom` stays only as a last-resort net for versions with no
+  path at all.
 - `categoryId` and a separate `description` field were not added; categories stay name-keyed and
   `merchant` + `note` cover the text.
 - Reminder alarms are inexact (battery-friendly); a reminder can arrive later in the day than 9am.

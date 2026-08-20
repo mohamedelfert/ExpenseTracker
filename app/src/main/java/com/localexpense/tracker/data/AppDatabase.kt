@@ -65,13 +65,15 @@ abstract class AppDatabase : RoomDatabase() {
                     "expense_tracker_db"
                 )
                     .openHelperFactory(factory)
-                    // ترقيات حقيقية تحافظ على البيانات: 5->6 تحويل المبالغ لوحدات
-                    // صغرى، و 6->7 كل مخطط المراحل 3-20 (إضافي بالكامل).
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
-                    // النسخ 1-4 القديمة معندناش مخططها (exportSchema كان false ومفيش
-                    // git history)، فبنسمح بإعادة إنشاء قاعدة البيانات لها فقط - نفس
-                    // سلوك fallbackToDestructiveMigration() القديم للنسخ دي بالظبط،
-                    // لكن دلوقتي بيانات النسخة 5 (الأغلبية) بتتحافظ عليها فعلاً.
+                    // ترقيات حقيقية تحافظ على البيانات في كل المسارات:
+                    // 1-4 -> 5 ترقية استكشافية (مخططها مجهول، راجع
+                    // LegacyMigrations)، 5->6 تحويل المبالغ لوحدات صغرى،
+                    // 6->7 كل مخطط المراحل 3-20.
+                    .addMigrations(*LEGACY_MIGRATIONS, MIGRATION_5_6, MIGRATION_6_7)
+                    // شبكة أمان أخيرة: لو ظهرت نسخة قديمة معندهاش مسار ترقية
+                    // (نسخة تجريبية قديمة مثلاً)، إعادة إنشاء القاعدة أحسن من
+                    // crash على كل فتح. النسخ 1-4 بقى ليها مسار حقيقي فوق،
+                    // فالسطر ده عمليًا مش بيشتغل ليها.
                     .fallbackToDestructiveMigrationFrom(1, 2, 3, 4)
                     .build()
                 INSTANCE = instance

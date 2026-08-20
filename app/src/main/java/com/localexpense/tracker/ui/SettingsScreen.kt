@@ -141,10 +141,16 @@ fun SettingsScreen(
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { exportLauncher.launch(BackupManager.suggestedFileName()) }) {
+                        TextButton(onClick = {
+                            runCatching { exportLauncher.launch(BackupManager.suggestedFileName()) }
+                                .onFailure { viewModel.exportBackupToAppFolder() }
+                        }) {
                             Text("حفظ نسخة")
                         }
-                        TextButton(onClick = { restoreLauncher.launch(arrayOf("application/json", "*/*")) }) {
+                        TextButton(onClick = {
+                            runCatching { restoreLauncher.launch(arrayOf("application/json", "*/*")) }
+                                .onFailure { viewModel.reportPickerUnavailable() }
+                        }) {
                             Text("استرجاع نسخة")
                         }
                     }

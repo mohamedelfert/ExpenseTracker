@@ -1,10 +1,9 @@
 package com.localexpense.tracker.util
 
-import android.content.Context
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
-import android.net.Uri
 import com.localexpense.tracker.money.formatMinor
+import java.io.ByteArrayOutputStream
 
 /**
  * تقرير PDF (المرحلة 18، بند 40) باستخدام `android.graphics.pdf.PdfDocument`
@@ -22,13 +21,16 @@ object PdfReport {
     private const val PAGE_HEIGHT = 842
     private const val MARGIN = 40f
 
-    fun write(
-        context: Context,
-        uri: Uri,
+    /**
+     * بيرجّع الملف كـ bytes بدل ما يكتبه بنفسه — اللي بينادي هو اللي يقرر
+     * يكتبه فين (ملف المستخدم من منتقي النظام، أو المكان الاحتياطي)، وكده
+     * كل مسارات الكتابة معالجة في مكان واحد.
+     */
+    fun render(
         title: String,
         subtitle: String,
         sections: List<Section>
-    ) {
+    ): ByteArray {
         val document = PdfDocument()
         val titlePaint = Paint().apply { textSize = 18f; isFakeBoldText = true }
         val headerPaint = Paint().apply { textSize = 14f; isFakeBoldText = true }
@@ -83,7 +85,9 @@ object PdfReport {
         }
 
         document.finishPage(page)
-        context.contentResolver.openOutputStream(uri, "wt")?.use { document.writeTo(it) }
+        val output = ByteArrayOutputStream()
+        document.writeTo(output)
         document.close()
+        return output.toByteArray()
     }
 }

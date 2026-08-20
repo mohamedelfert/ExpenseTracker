@@ -47,6 +47,11 @@ object BackupManager {
         snapshot.totalRows
     }
 
+    /** نص النسخة الاحتياطية كامل - بيستخدمه المسار الاحتياطي للحفظ. */
+    suspend fun encodeToText(context: Context): String = withContext(Dispatchers.IO) {
+        encode(ExpenseRepository(context).snapshot()).toString()
+    }
+
     fun encode(snapshot: BackupSnapshot): JSONObject = JSONObject().apply {
         put("formatVersion", FORMAT_VERSION)
         put("dbVersion", 7)
