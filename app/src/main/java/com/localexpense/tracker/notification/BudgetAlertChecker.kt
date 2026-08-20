@@ -1,24 +1,30 @@
 package com.localexpense.tracker.notification
 
 import android.content.Context
+import com.localexpense.tracker.data.Budget
 import com.localexpense.tracker.data.BudgetDao
 import com.localexpense.tracker.data.ExpenseDao
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
+import com.localexpense.tracker.domain.BudgetState
+import com.localexpense.tracker.domain.budgetProgress
+import com.localexpense.tracker.domain.forecast
+import com.localexpense.tracker.util.dayOfMonth
+import com.localexpense.tracker.util.daysInMonth
+import com.localexpense.tracker.util.monthKey
+import com.localexpense.tracker.util.monthRange
 
 /**
- * بيتفحص بعد كل مصروف جديد: هل الفئة دي وصلت أو تخطّت الميزانية المحددة
- * ليها الشهر ده؟ لو آه، بيطلع إشعار محلي واحد بس لكل مستوى (80% و 100%)
- * لكل فئة لكل شهر - عشان المستخدم ميتقصفش بإشعارات مكررة مع كل عملية.
+ * بيتفحص بعد كل حركة جديدة: هل الفئة دي — أو الميزانية الكلية — قربت أو
+ * تخطّت الحد المحدد الشهر ده؟ ولو المعدل الحالي بيوصل لتخطي الميزانية بنهاية
+ * الشهر، بيطلع تنبيه استباقي (المرحلة 7، بند 24).
  *
- * كله بيحصل على الجهاز نفسه (قراءة من Room + SharedPreferences بسيطة لتتبع
- * الإشعارات اللي اتبعتت قبل كده) - مفيش أي اتصال بالإنترنت.
+ * كل مستوى تنبيه بيظهر مرة واحدة بس لكل فئة لكل شهر (متخزّن في
+ * SharedPreferences) — عشان المستخدم ميتقصفش بإشعارات مكررة مع كل عملية.
+ *
+ * كله على الجهاز: قراءة من Room + prefs، مفيش أي اتصال بالإنترنت.
  */
 object BudgetAlertChecker {
 
     private const val PREFS_NAME = "budget_alert_state"
-    private const val WARNING_THRESHOLD = 0.8
 
     suspend fun checkAndNotify(
         context: Context,
@@ -27,50 +33,60 @@ object BudgetAlertChecker {
         categoryName: String,
         transactionTimestamp: Long
     ) {
-        val budget = budgetDao.getBudget(categoryName) ?: return
-        if (budget.limitMinor <= 0L) return
-
-        val (monthStart, monthEnd) = monthRange(transactionTimestamp)
-        val spent = expenseDao.getCategoryTotalBetween(categoryName, monthStart, monthEnd) ?: 0L
-        val ratio = spent.toDouble() / budget.limitMinor
-
-        val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(java.util.Date(transactionTimestamp))
+        val range = monthRange(transactionTimestamp)
+        val monthKey = monthKey(transactionTimestamp)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-        when {
-            ratio >= 1.0 -> {
-                val prefKey = "exceeded_${categoryName}_$monthKey"
-                if (!prefs.getBoolean(prefKey, false)) {
-                    NotificationHelper.showBudgetAlertNotification(
-                        context, categoryName, spent, budget.limitMinor, exceeded = true
-                    )
-                    prefs.edit().putBoolean(prefKey, true).apply()
-                }
-            }
-            ratio >= WARNING_THRESHOLD -> {
-                val prefKey = "warning_${categoryName}_$monthKey"
-                if (!prefs.getBoolean(prefKey, false)) {
-                    NotificationHelper.showBudgetAlertNotification(
-                        context, categoryName, spent, budget.limitMinor, exceeded = false
-                    )
-                    prefs.edit().putBoolean(prefKey, true).apply()
-                }
-            }
+        // 1. ميزانية الفئة
+        budgetDao.getBudget(categoryName)?.takeIf { it.limitMinor > 0L }?.let { budget ->
+            val spent = expenseDao.getCategoryTotalBetween(categoryName, range.start, range.end) ?: 0L
+            notifyIfNeeded(context, prefs, monthKey, categoryName, spent, budget.limitMinor, transactionTimestamp)
+        }
+
+        // 2. الميزانية الكلية للشهر
+        budgetDao.getBudget(Budget.OVERALL_KEY)?.takeIf { it.limitMinor > 0L }?.let { budget ->
+            val spent = expenseDao.getTotalBetween(range.start, range.end) ?: 0L
+            notifyIfNeeded(context, prefs, monthKey, OVERALL_LABEL, spent, budget.limitMinor, transactionTimestamp)
         }
     }
 
-    private fun monthRange(timestamp: Long): Pair<Long, Long> {
-        val calendar = Calendar.getInstance().apply {
-            timeInMillis = timestamp
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+    private const val OVERALL_LABEL = "الميزانية الكلية"
+
+    private fun notifyIfNeeded(
+        context: Context,
+        prefs: android.content.SharedPreferences,
+        monthKey: String,
+        label: String,
+        spentMinor: Long,
+        limitMinor: Long,
+        timestamp: Long
+    ) {
+        val progress = budgetProgress(spentMinor, limitMinor)
+        val daysRemaining = forecast(
+            netSpentMinor = spentMinor,
+            daysElapsed = dayOfMonth(timestamp),
+            daysInMonth = daysInMonth(timestamp),
+            budgetLimitMinor = limitMinor
+        ).daysRemaining
+
+        val level = when (progress.state) {
+            BudgetState.EXCEEDED -> "exceeded"
+            BudgetState.WARNING -> "warning"
+            BudgetState.SAFE -> return
         }
-        val start = calendar.timeInMillis
-        calendar.add(Calendar.MONTH, 1)
-        val end = calendar.timeInMillis - 1
-        return start to end
+
+        val prefKey = "${level}_${label}_$monthKey"
+        if (prefs.getBoolean(prefKey, false)) return
+
+        NotificationHelper.showBudgetAlertNotification(
+            context = context,
+            label = label,
+            spentMinor = spentMinor,
+            limitMinor = limitMinor,
+            exceeded = progress.state == BudgetState.EXCEEDED,
+            percentUsed = progress.percentUsed,
+            daysRemaining = daysRemaining
+        )
+        prefs.edit().putBoolean(prefKey, true).apply()
     }
 }

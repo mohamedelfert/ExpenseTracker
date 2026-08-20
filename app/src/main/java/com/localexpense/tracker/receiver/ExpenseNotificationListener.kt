@@ -53,7 +53,10 @@ class ExpenseNotificationListener : NotificationListenerService() {
             val db = AppDatabase.getDatabase(applicationContext)
             val customRules = db.smsRuleDao().getEnabledRules()
 
-            val expense = SmsParser.parseSms(sender, fullBody, timestamp, customRules)
+            val expense = SmsParser.parseSms(
+                sender, fullBody, timestamp, customRules,
+                source = com.localexpense.tracker.data.TransactionSource.NOTIFICATION
+            )
             if (expense != null) {
                 val dao = db.expenseDao()
 

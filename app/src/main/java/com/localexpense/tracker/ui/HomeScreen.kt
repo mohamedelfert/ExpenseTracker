@@ -1,6 +1,7 @@
 package com.localexpense.tracker.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,8 +15,12 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -47,11 +52,17 @@ fun HomeScreen(
     onOpenTestSms: () -> Unit,
     onOpenAddExpense: () -> Unit,
     onOpenDashboard: () -> Unit,
-    onOpenRecurring: () -> Unit
+    onOpenRecurring: () -> Unit,
+    onOpenTransactions: () -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onOpenInstallments: () -> Unit = {},
+    onOpenTransaction: (Long) -> Unit = {}
 ) {
     val expenses by viewModel.expenses.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
     val cleanupState by viewModel.cleanupState.collectAsStateWithLifecycle()
+    val anomalyWarning by viewModel.anomalyWarning.collectAsStateWithLifecycle()
 
     var showDisclosureDialog by remember { mutableStateOf(false) }
     var showCleanupConfirmDialog by remember { mutableStateOf(false) }
@@ -94,17 +105,9 @@ fun HomeScreen(
         }
     }
 
-    val currentMonthTotal = remember(expenses) {
-        val currentCal = Calendar.getInstance()
-        val currentMonth = currentCal.get(Calendar.MONTH)
-        val currentYear = currentCal.get(Calendar.YEAR)
-        val expCal = Calendar.getInstance()
-
-        expenses.filter { expense ->
-            expCal.timeInMillis = expense.timestamp
-            expCal.get(Calendar.MONTH) == currentMonth && expCal.get(Calendar.YEAR) == currentYear
-        }.sumOf { it.amountMinor }
-    }
+    // إجمالي الشهر جاي من تجميع SQL (بيستثني التحويلات وبيخصم الاسترداد)،
+    // مش من جمع القائمة المعروضة في الذاكرة.
+    val currentMonthTotal by viewModel.monthTotal.collectAsStateWithLifecycle()
 
     // تجميع البيانات وتصفية السنوات المؤرشفة
     val groupedData = remember(expenses, archivedYears.toList()) {
@@ -211,14 +214,26 @@ fun HomeScreen(
                         IconButton(onClick = { showArchiveDialog = true }) {
                             Icon(Icons.Default.Unarchive, contentDescription = "الأرشيف", tint = Color.White)
                         }
+                        IconButton(onClick = onOpenTransactions) {
+                            Icon(Icons.Default.Search, contentDescription = "بحث وفلاتر", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenCalendar) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = "التقويم", tint = Color.White)
+                        }
                         IconButton(onClick = onOpenRecurring) {
-                            Icon(Icons.Default.DateRange, contentDescription = "الدوريات", tint = Color.White)
+                            Icon(Icons.Default.DateRange, contentDescription = "الدوريات والاشتراكات", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenInstallments) {
+                            Icon(Icons.Default.CreditCard, contentDescription = "الأقساط", tint = Color.White)
                         }
                         IconButton(onClick = onOpenAddExpense) {
                             Icon(Icons.Default.Add, contentDescription = "إضافة مصروف", tint = Color.White)
                         }
                         IconButton(onClick = onOpenDashboard) {
                             Icon(Icons.Default.BarChart, contentDescription = "الإحصائيات", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Tune, contentDescription = "الإعدادات والخصوصية", tint = Color.White)
                         }
                         IconButton(onClick = onOpenTestSms) {
                             Icon(Icons.Default.Settings, contentDescription = "اختبار رسالة SMS", tint = Color.White)
@@ -249,6 +264,32 @@ fun HomeScreen(
                     onRequestNotificationPermission = onRequestNotificationPermission,
                     onOpenAppSettings = onOpenAppSettings
                 )
+            }
+
+            // تحذير حركة شاذة (المرحلة 11): بيظهر بعد تسجيل عملية أعلى بكتير
+            // من متوسط فئتها، وبيتقفل بضغطة عشان ميقعدش في وش المستخدم.
+            anomalyWarning?.let { warning ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF3E2723))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = warning,
+                            color = Color(0xFFFFCC80),
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { viewModel.dismissAnomalyWarning() }) {
+                            Text("تمام", color = Color(0xFFFFB74D), fontSize = 12.sp)
+                        }
+                    }
+                }
             }
 
             // زرار "استيراد صندوق الوارد" بيحتاج READ_SMS، فمش متاح إلا في نسخة
@@ -425,7 +466,8 @@ fun HomeScreen(
                                             BankExpensesCard(
                                                 bankName = bankName,
                                                 expenses = bankExpenses,
-                                                timeFormatter = timeFormatter
+                                                timeFormatter = timeFormatter,
+                                                onOpenTransaction = onOpenTransaction
                                             )
                                         }
                                     }
@@ -754,7 +796,8 @@ private fun HeaderCard(
 private fun BankExpensesCard(
     bankName: String,
     expenses: List<Expense>,
-    timeFormatter: SimpleDateFormat
+    timeFormatter: SimpleDateFormat,
+    onOpenTransaction: (Long) -> Unit = {}
 ) {
     val bankTotal = remember(expenses) { expenses.sumOf { it.amountMinor } }
 
@@ -796,6 +839,7 @@ private fun BankExpensesCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable { onOpenTransaction(expense.id) }
                         .padding(vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -829,9 +873,11 @@ private fun BankExpensesCard(
                         )
                     }
 
+                    val isCredit = expense.type == com.localexpense.tracker.data.TransactionType.INCOME ||
+                        expense.type == com.localexpense.tracker.data.TransactionType.REFUND
                     Text(
-                        text = "-${formatMinor(expense.amountMinor)}",
-                        color = Color(0xFFFF8A80),
+                        text = (if (isCredit) "+" else "-") + formatMinor(expense.amountMinor),
+                        color = if (isCredit) Color(0xFF81C784) else Color(0xFFFF8A80),
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
