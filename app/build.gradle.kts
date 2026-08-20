@@ -27,8 +27,8 @@ android {
         // اعتبارًا من 31 أغسطس 2026. راجع:
         // https://developer.android.com/google/play/requirements/target-sdk
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

@@ -72,6 +72,26 @@ object CrashLog {
         }.take(MAX_CHARS)
     }
 
+    /**
+     * تقرير الانهيار **القاتل** بس.
+     *
+     * شاشة الأمان في MainActivity بتتحكم بده تحديدًا، مش بـ [read]: الأخطاء
+     * غير القاتلة بتتكتب في ملف تاني، ولو الشاشة اتفتحت عليها كان التطبيق
+     * هيرفض يشتغل ويقول "قفل آخر مرة" في حالات مفيش فيها أي انهيار — بل
+     * وحتى بعد ما يكون التطبيق **نجح** في إصلاح قاعدة البيانات وسجّل ده
+     * كخطأ غير قاتل.
+     */
+    fun readFatal(context: Context): String? {
+        val file = File(context.applicationContext.filesDir, FILE_NAME)
+        if (!file.exists()) return null
+        return runCatching { file.readText() }.getOrNull()
+    }
+
+    /** بيمسح تقرير الانهيار القاتل بس، وبيسيب الأخطاء غير القاتلة للإعدادات. */
+    fun clearFatal(context: Context) {
+        runCatching { File(context.applicationContext.filesDir, FILE_NAME).delete() }
+    }
+
     /** بيرجع التقريرين مع بعض (انهيار + خطأ غير قاتل) لو الاتنين موجودين. */
     fun read(context: Context): String? {
         val dir = context.applicationContext.filesDir

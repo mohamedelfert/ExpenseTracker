@@ -23,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -341,6 +342,28 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(Modifier.height(12.dp))
+                    // النص الكامل متكتوب في docs/PRIVACY_POLICY.md جوه
+                    // المستودع. runCatching لأن الجهاز ممكن ميكونش عليه
+                    // متصفح، وساعتها منقفلش التطبيق.
+                    OutlinedButton(onClick = {
+                        val opened = runCatching {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse(PRIVACY_POLICY_URL)
+                                )
+                            )
+                            true
+                        }.getOrDefault(false)
+                        if (!opened) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "مفيش متصفح على الجهاز يفتح الرابط",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }) { Text("سياسة الخصوصية الكاملة") }
                 }
             }
             item { Spacer(Modifier.height(24.dp)) }
@@ -436,3 +459,12 @@ private fun PrivacyLine(text: String) {
         Text(text, style = MaterialTheme.typography.bodySmall)
     }
 }
+
+/**
+ * رابط سياسة الخصوصية الكاملة (docs/PRIVACY_POLICY.md في المستودع).
+ *
+ * **لازم يتغيّر:** استبدل `YOUR_USERNAME` باسم حسابك على GitHub بعد ما ترفع
+ * المشروع، وإلا الزرار هيفتح صفحة 404.
+ */
+private const val PRIVACY_POLICY_URL =
+    "https://github.com/YOUR_USERNAME/ExpenseTracker/blob/main/docs/PRIVACY_POLICY.md"

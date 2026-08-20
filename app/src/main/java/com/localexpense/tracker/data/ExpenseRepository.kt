@@ -13,6 +13,7 @@ import com.localexpense.tracker.domain.monthlyEquivalentMinor
 import com.localexpense.tracker.domain.nextDueDate
 import com.localexpense.tracker.domain.normalizeMerchant
 import com.localexpense.tracker.util.TimeRange
+import com.localexpense.tracker.widget.MonthlySummaryWidgetProvider
 import com.localexpense.tracker.util.dayOfMonth
 import com.localexpense.tracker.util.daysInMonth
 import com.localexpense.tracker.util.monthKey
@@ -35,7 +36,13 @@ class ExpenseRepository(
     private val accountDao: AccountDao,
     private val merchantDao: MerchantDao,
     private val merchantRuleDao: MerchantRuleDao,
-    private val installmentDao: InstallmentDao
+    private val installmentDao: InstallmentDao,
+    /**
+     * سياق التطبيق - محتاجينه بس عشان نحدّث ويدجت الشاشة الرئيسية بعد أي
+     * تغيير. اختياري (null) عشان الاختبارات تقدر تبني الريبو بالـ DAOs
+     * لوحدها من غير أي سياق أندرويد.
+     */
+    private val appContext: Context? = null
 ) {
 
     constructor(context: Context) : this(
@@ -47,8 +54,24 @@ class ExpenseRepository(
         AppDatabase.getDatabase(context).accountDao(),
         AppDatabase.getDatabase(context).merchantDao(),
         AppDatabase.getDatabase(context).merchantRuleDao(),
-        AppDatabase.getDatabase(context).installmentDao()
+        AppDatabase.getDatabase(context).installmentDao(),
+        context.applicationContext
     )
+
+    /**
+     * تحديث ويدجت الشاشة الرئيسية بعد أي تغيير في الحركات. بيتنادى من كل
+     * نقطة تعديل تحت عشان الرقم على الشاشة الرئيسية ميبقاش قديم لحد التحديث
+     * الدوري (30 دقيقة).
+     *
+     * سقف معروف: captureTransaction بتتنادى لكل رسالة على حدة، فاستيراد
+     * صندوق رسائل فيه N عملية = N استعلام إجمالي + N تحديث ويدجت. لو ده بان
+     * بطيء فعلاً، الحل إن مسار الاستيراد يتخطى التحديث ويستدعي
+     * MonthlySummaryWidgetProvider.refreshNow مرة واحدة في الآخر.
+     */
+    private suspend fun refreshWidget() {
+        val context = appContext ?: return
+        MonthlySummaryWidgetProvider.refreshNow(context)
+    }
 
     // ===== الحركات =====
 
@@ -107,7 +130,7 @@ class ExpenseRepository(
             expense.categoryName
         }
 
-        return expenseDao.insertExpense(
+        val id = expenseDao.insertExpense(
             expense.copy(
                 categoryName = category,
                 merchantId = merchant?.id,
@@ -115,6 +138,8 @@ class ExpenseRepository(
                 updatedAt = now
             )
         )
+        refreshWidget()
+        return id
     }
 
     suspend fun insertExpense(expense: Expense): Long = insertTransaction(expense)
@@ -150,16 +175,36 @@ class ExpenseRepository(
             createdAt = now,
             updatedAt = now
         )
-        return if (expenseDao.insertIfNotDuplicate(enriched, dedupWindowMillis)) enriched else null
+        if (!expenseDao.insertIfNotDuplicate(enriched, dedupWindowMillis)) return null
+        refreshWidget()
+        return enriched
     }
 
     suspend fun update(expense: Expense) = updateExpense(expense)
 
-    suspend fun updateExpense(expense: Expense) =
+    suspend fun updateExpense(expense: Expense) {
         expenseDao.update(expense.copy(updatedAt = System.currentTimeMillis()))
+        refreshWidget()
+    }
 
-    suspend fun delete(expense: Expense) = expenseDao.delete(expense)
-    suspend fun deleteExpense(expense: Expense) = expenseDao.delete(expense)
+    suspend fun delete(expense: Expense) = deleteExpense(expense)
+
+    suspend fun deleteExpense(expense: Expense) {
+        expenseDao.delete(expense)
+        refreshWidget()
+    }
+
+    /**
+     * تراجع عن الحذف: بيعيد إدراج الحركة **بنفس الـ id** وكل بياناتها زي ما
+     * كانت. الـ @Insert بـ OnConflictStrategy.REPLACE فالإدراج بنفس المفتاح
+     * بيرجّع الصف مكانه بالظبط، ومبيمرّش على التصنيف التلقائي ولا على
+     * upsertMerchant تاني (الحركة كانت متصنّفة خلاص - إعادة تصنيفها ممكن
+     * تغيّر فئة المستخدم اختارها بإيده).
+     */
+    suspend fun restoreExpense(expense: Expense) {
+        expenseDao.insertExpense(expense)
+        refreshWidget()
+    }
 
     suspend fun setVerified(expense: Expense, verified: Boolean) =
         updateExpense(expense.copy(isVerified = verified))
@@ -228,6 +273,7 @@ class ExpenseRepository(
         }
 
         toDelete.forEach { expenseDao.delete(it) }
+        if (toDelete.isNotEmpty()) refreshWidget()
         return toDelete.size
     }
 

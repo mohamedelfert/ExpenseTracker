@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    updatePeriodMillis = 30 دقيقة: ده أقل رقم النظام بيحترمه فعليًا (أي رقم
+    أقل بيتعامل معاه كـ 30 دقيقة). التحديث الفوري بعد أي تغيير في الحركات
+    بيحصل من ExpenseRepository مباشرة، فالرقم ده مجرد شبكة أمان.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/widget_monthly_summary"
+    android:minHeight="70dp"
+    android:minWidth="110dp"
+    android:previewLayout="@layout/widget_monthly_summary"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

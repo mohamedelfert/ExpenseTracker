@@ -21,8 +21,10 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.localexpense.tracker.security.AppLock
+import com.localexpense.tracker.util.CrashLog
 import com.localexpense.tracker.receiver.ExpenseNotificationListener
 import com.localexpense.tracker.ui.AppNavHost
+import com.localexpense.tracker.ui.CrashReportScreen
 import com.localexpense.tracker.ui.LockScreen
 import com.localexpense.tracker.ui.RestrictedSettingsDialog
 import com.localexpense.tracker.ui.theme.ExpenseTrackerTheme
@@ -226,6 +228,24 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // لو التشغيلة اللي فاتت قفلت، نعرض السبب و**نوقف هنا**. أي كود تحت
+        // (الأذونات، القفل، الـ ViewModels، قاعدة البيانات) هو نفسه احتمال
+        // يكون سبب القفلة، فمينفعش يتنفّذ قبل ما المستخدم يشوف التقرير.
+        // "متابعة" بتمسح التقرير وتعيد إنشاء الشاشة عشان يجرب فتح عادي.
+        val pendingCrash = runCatching { CrashLog.readFatal(this) }.getOrNull()
+        if (pendingCrash != null) {
+            setContent {
+                CrashReportScreen(
+                    report = pendingCrash,
+                    onContinue = {
+                        CrashLog.clearFatal(this@MainActivity)
+                        recreate()
+                    }
+                )
+            }
+            return
+        }
 
         refreshPermissionState()
         locked.value = AppLock.isLockEnabled(this)

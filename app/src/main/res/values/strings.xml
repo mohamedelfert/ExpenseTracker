@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">مصروفاتي</string>
+    <string name="widget_month_expenses">مصروف الشهر</string>
 </resources>

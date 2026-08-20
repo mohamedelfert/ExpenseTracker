@@ -312,6 +312,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteExpense(expense) }
     }
 
+    /**
+     * تراجع عن الحذف — بيعيد الحركة بنفس الـ id وكل بياناتها. بيتنادى من
+     * زرار "تراجع" في الـ Snackbar بعد الحذف (راجع TransactionDetailScreen).
+     */
+    fun restoreExpense(expense: Expense) {
+        viewModelScope.launch { repository.restoreExpense(expense) }
+    }
+
     fun setVerified(expense: Expense, verified: Boolean) {
         viewModelScope.launch { repository.setVerified(expense, verified) }
     }

@@ -59,6 +59,20 @@
             </intent-filter>
         </receiver>
 
+        <!-- ويدجت الشاشة الرئيسية (إجمالي مصروف الشهر). exported=false:
+             نظام الويدجتس بيوصل للـ receiver من غير ما يكون مكشوف لتطبيقات
+             تانية. -->
+        <receiver
+            android:name=".widget.MonthlySummaryWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/monthly_summary_widget_info" />
+        </receiver>
+
         <service
             android:name=".receiver.ExpenseNotificationListener"
             android:label="تتبع المصروفات (إشعارات)"

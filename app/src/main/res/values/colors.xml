@@ -1,4 +1,9 @@
 <resources>
     <!-- خلفية نافذة التطبيق قبل ما Compose يرسم (منع الوميض الأبيض) -->
     <color name="window_background">#FBFAF6</color>
+    <!-- ألوان ويدجت الشاشة الرئيسية (مش جزء من ثيم Compose - الويدجت
+         RemoteViews فمحتاج ألوان من الموارد). -->
+    <color name="widget_background">#0F6E56</color>
+    <color name="widget_text">#FFFFFF</color>
+    <color name="widget_label">#CCE8DF</color>
 </resources>

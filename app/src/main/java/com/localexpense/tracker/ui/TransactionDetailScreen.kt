@@ -30,6 +30,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -38,12 +42,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.localexpense.tracker.money.formatMinor
 import com.localexpense.tracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
@@ -73,10 +79,17 @@ fun TransactionDetailScreen(
     var showAmountDialog by remember { mutableStateOf(false) }
     var showDateDialog by remember { mutableStateOf(false) }
 
+    // الحذف بيعرض Snackbar فيه "تراجع" بدل ما يرجع على طول: لو المستخدم
+    // ضغط تراجع بنعيد الحركة، ولو المهلة خلصت من غير تفاعل بنرجع للشاشة
+    // اللي قبلها.
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy", Locale("ar")) }
     val timeFormat = remember { SimpleDateFormat("hh:mm a", Locale("ar")) }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("تفاصيل الحركة") },
@@ -276,12 +289,26 @@ fun TransactionDetailScreen(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("حذف الحركة") },
-            text = { Text("هتتشال نهائيًا من التطبيق. الإجراء مينفعش يتراجع فيه.") },
+            text = { Text("هتتشال من التطبيق. هيظهرلك زرار \"تراجع\" لحظة عشان ترجّعها لو غيّرت رأيك.") },
             confirmButton = {
                 Button(onClick = {
                     viewModel.deleteExpense(item)
                     showDeleteConfirm = false
-                    onBack()
+                    scope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = "تم حذف الحركة",
+                            actionLabel = "تراجع",
+                            duration = SnackbarDuration.Short
+                        )
+                        // item هنا قيمة متسكة في الـ lambda، فبتفضل صالحة حتى
+                        // بعد ما الحركة تتشال من قاعدة البيانات والـ state
+                        // بقى null.
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.restoreExpense(item)
+                        } else {
+                            onBack()
+                        }
+                    }
                 }) { Text("حذف") }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("إلغاء") } }
