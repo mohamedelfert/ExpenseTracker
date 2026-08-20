@@ -5,7 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import com.localexpense.tracker.data.AppDatabase
-import com.localexpense.tracker.data.insertIfNotDuplicate
+import com.localexpense.tracker.data.ExpenseRepository
 import com.localexpense.tracker.notification.BudgetAlertChecker
 import com.localexpense.tracker.notification.NotificationHelper
 import com.localexpense.tracker.parser.SmsParser
@@ -35,12 +35,16 @@ class SmsReceiver : BroadcastReceiver() {
                     if (expense != null) {
                         val dao = db.expenseDao()
 
-                        if (dao.insertIfNotDuplicate(expense)) {
+                        // الريبو هو اللي بيعمل فحص التكرار + التصنيف + تسجيل
+                        // الجهة، عشان مسار الـ SMS والإشعار والاستيراد يفضلوا
+                        // متطابقين في السلوك.
+                        val saved = ExpenseRepository(context).captureTransaction(expense)
+                        if (saved != null) {
                             NotificationHelper.showExpenseCapturedNotification(
-                                context, expense.amount, expense.merchant, expense.bankName
+                                context, saved.amountMinor, saved.merchant, saved.bankName
                             )
                             BudgetAlertChecker.checkAndNotify(
-                                context, dao, db.budgetDao(), expense.categoryName, expense.timestamp
+                                context, dao, db.budgetDao(), saved.categoryName, saved.timestamp
                             )
                         }
                     }

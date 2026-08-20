@@ -6,19 +6,23 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
+import com.localexpense.tracker.security.AppLock
 import com.localexpense.tracker.ui.AppNavHost
+import com.localexpense.tracker.ui.LockScreen
 import com.localexpense.tracker.ui.theme.ExpenseTrackerTheme
+import com.localexpense.tracker.viewmodel.FinanceViewModel
 import com.localexpense.tracker.viewmodel.MainViewModel
+import com.localexpense.tracker.viewmodel.PlansViewModel
 
 /**
  * الأذونات الحساسة المطلوبة (نسخة "direct" فقط):
@@ -35,10 +39,19 @@ private val SMS_PERMISSIONS = arrayOf(
     Manifest.permission.READ_SMS
 )
 
-class MainActivity : ComponentActivity() {
+/**
+ * FragmentActivity (مش ComponentActivity زي الأول) لأن BiometricPrompt بتطلب
+ * FragmentActivity — راجع security/BiometricAuth.kt. FragmentActivity وارثة من
+ * ComponentActivity فكل حاجة في Compose بتفضل شغالة زي ما هي.
+ */
+class MainActivity : FragmentActivity() {
 
     private var smsPermissionGranted = mutableStateOf(false)
     private var notificationAccessGranted = mutableStateOf(false)
+
+    /** القفل (المرحلة 16): مقفول من البداية لو المستخدم مفعّل رقم سري. */
+    private var locked = mutableStateOf(false)
+    private var backgroundedAt = 0L
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -71,39 +84,60 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
     }
 
+    override fun onStop() {
+        super.onStop()
+        backgroundedAt = System.currentTimeMillis()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         refreshPermissionState()
+        locked.value = AppLock.isLockEnabled(this)
 
         setContent {
             ExpenseTrackerTheme {
+                // كل الـ ViewModels على مستوى الـ Activity: كده محرّك
+                // التحليلات نسخة واحدة لكل الشاشات (راجع التعليق في AppNavHost).
                 val viewModel: MainViewModel = viewModel()
+                val finance: FinanceViewModel = viewModel()
+                val plans: PlansViewModel = viewModel()
                 val navController = rememberNavController()
                 val smsGranted by smsPermissionGranted
                 val notifGranted by notificationAccessGranted
+                val isLocked by locked
 
-                // إعادت فحص حالة الإذن عند العودة للتطبيق من إعدادات النظام
+                // إعادة فحص حالة الإذن، وفحص هل لازم نقفل تاني بعد الرجوع
+                // من الخلفية حسب المهلة المحددة في الإعدادات.
                 LifecycleResumeEffect(Unit) {
                     refreshPermissionState()
+                    if (AppLock.shouldLock(this@MainActivity, backgroundedAt)) {
+                        locked.value = true
+                    }
                     onPauseOrDispose { }
                 }
 
-                AppNavHost(
-                    navController = navController,
-                    viewModel = viewModel,
-                    smsPermissionGranted = smsGranted,
-                    notificationAccessGranted = notifGranted,
-                    onRequestSmsPermission = {
-                        // في نسخة "play" الأذونات دي مش معلنة أصلاً في الـ Manifest،
-                        // فمحاولة طلبها هتترفض من النظام تلقائيًا - نتجاهلها بأمان.
-                        if (BuildConfig.ENABLE_SMS_IMPORT) {
-                            permissionLauncher.launch(SMS_PERMISSIONS)
-                        }
-                    },
-                    onRequestNotificationPermission = { openNotificationSettings() },
-                    onOpenAppSettings = { openAppSettings() }
-                )
+                if (isLocked) {
+                    LockScreen(onUnlocked = { locked.value = false })
+                } else {
+                    AppNavHost(
+                        navController = navController,
+                        viewModel = viewModel,
+                        finance = finance,
+                        plans = plans,
+                        smsPermissionGranted = smsGranted,
+                        notificationAccessGranted = notifGranted,
+                        onRequestSmsPermission = {
+                            // في نسخة "play" الأذونات دي مش معلنة أصلاً في الـ Manifest،
+                            // فمحاولة طلبها هتترفض من النظام تلقائيًا - نتجاهلها بأمان.
+                            if (BuildConfig.ENABLE_SMS_IMPORT) {
+                                permissionLauncher.launch(SMS_PERMISSIONS)
+                            }
+                        },
+                        onRequestNotificationPermission = { openNotificationSettings() },
+                        onOpenAppSettings = { openAppSettings() }
+                    )
+                }
             }
         }
     }

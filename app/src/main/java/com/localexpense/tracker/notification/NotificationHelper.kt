@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.localexpense.tracker.R
+import com.localexpense.tracker.money.formatMinor
 
 /**
  * نقطة موحّدة لكل إشعارات التطبيق (بدل ما كل مكان يعرّف الـ channel بتاعه
@@ -50,7 +51,7 @@ object NotificationHelper {
 
     fun showExpenseCapturedNotification(
         context: Context,
-        amount: Double,
+        amountMinor: Long,
         merchant: String,
         bankName: String
     ) {
@@ -60,7 +61,7 @@ object NotificationHelper {
         val notification = NotificationCompat.Builder(context, CHANNEL_EXPENSE_CAPTURED)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("تم تسجيل مصروف جديد 💳")
-            .setContentText("خصم $amount ج.م - $merchant ($bankName)")
+            .setContentText("خصم ${formatMinor(amountMinor)} - $merchant ($bankName)")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
@@ -70,19 +71,21 @@ object NotificationHelper {
 
     fun showBudgetAlertNotification(
         context: Context,
-        categoryName: String,
-        spent: Double,
-        limit: Double,
-        exceeded: Boolean
+        label: String,
+        spentMinor: Long,
+        limitMinor: Long,
+        exceeded: Boolean,
+        percentUsed: Int,
+        daysRemaining: Int
     ) {
         if (!hasNotificationPermission(context)) return
         ensureChannels(context)
 
-        val title = if (exceeded) "⚠️ تخطيت ميزانية \"$categoryName\"" else "🔔 قربت من ميزانية \"$categoryName\""
+        val title = if (exceeded) "⚠️ تخطيت \"$label\"" else "🔔 قربت من \"$label\""
         val text = if (exceeded) {
-            "صرفت %.2f ج.م من أصل %.2f ج.م المحددة الشهر ده".format(spent, limit)
+            "صرفت ${formatMinor(spentMinor)} من أصل ${formatMinor(limitMinor)} وفاضل $daysRemaining يوم في الشهر"
         } else {
-            "صرفت %.2f ج.م من أصل %.2f ج.م (أكتر من 80%%)".format(spent, limit)
+            "استخدمت $percentUsed% (${formatMinor(spentMinor)} من ${formatMinor(limitMinor)}) وفاضل $daysRemaining يوم"
         }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_BUDGET_ALERT)
@@ -96,9 +99,42 @@ object NotificationHelper {
         // نفس الـ id لكل فئة عشان لو ظهر تنبيه "قربت" وبعدين "تخطيت" في نفس
         // الشهر، الثاني يستبدل الأول بدل ما يتراكموا إشعارات كتير.
         NotificationManagerCompat.from(context).notify(
-            "budget_$categoryName".hashCode(),
+            "budget_$label".hashCode(),
             notification
         )
+    }
+
+    /**
+     * تنبيه بدفعة قادمة (اشتراك/دورية/قسط).
+     *
+     * ponytail: بيتفحص وقت فتح التطبيق بس، مش بجدول خلفي — إضافة WorkManager
+     * لتنبيه بيوم واحد فرق مش مستاهلة. لو التنبيه لازم يوصل والتطبيق مقفول،
+     * الترقية هي WorkManager PeriodicWorkRequest يومي بينادي نفس الدالة دي.
+     */
+    fun showUpcomingPaymentNotification(
+        context: Context,
+        name: String,
+        amountMinor: Long,
+        daysUntil: Int
+    ) {
+        if (!hasNotificationPermission(context)) return
+        ensureChannels(context)
+
+        val when_ = when (daysUntil) {
+            0 -> "النهاردة"
+            1 -> "بكرة"
+            else -> "بعد $daysUntil يوم"
+        }
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_BUDGET_ALERT)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("📅 دفعة قادمة: $name")
+            .setContentText("${formatMinor(amountMinor)} مستحقة $when_")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+
+        NotificationManagerCompat.from(context).notify("upcoming_$name".hashCode(), notification)
     }
 
     private fun hasNotificationPermission(context: Context): Boolean {

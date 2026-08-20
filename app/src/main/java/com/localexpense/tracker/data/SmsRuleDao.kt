@@ -31,4 +31,13 @@ interface SmsRuleDao {
 
     @Query("SELECT COUNT(*) FROM sms_rules")
     suspend fun count(): Int
+
+    @Query("SELECT * FROM sms_rules")
+    suspend fun getAllOnce(): List<SmsRule>
+
+    @Query("SELECT * FROM sms_rules WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): SmsRule?
+
+    @Query("DELETE FROM sms_rules")
+    suspend fun deleteAll()
 }

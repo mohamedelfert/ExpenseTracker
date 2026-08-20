@@ -30,6 +30,8 @@ android {
         versionCode = 1
         versionName = "1.0"
 
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         // فلاج بيتحكم في إظهار/تفعيل مسار قراءة الـ SMS المباشرة داخل الكود.
         // بيتغيّر قيمته تلقائيًا حسب الـ flavor (play / direct) تحت.
         buildConfigField("boolean", "ENABLE_SMS_IMPORT", "true")
@@ -103,6 +105,15 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    // مخططات Room المولّدة (نسخة 6 وما بعدها) تُصدَّر هنا وتُقرأ في اختبار
+    // الترقية (MigrationTestHelper) من أصول الـ androidTest.
+    sourceSets["androidTest"].assets.srcDir("$projectDir/schemas")
+}
+
+// مكان تصدير مخططات Room (JSON) لكل نسخة — مطلوب للتحقق من الترقيات.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -138,5 +149,22 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    // قفل التطبيق بالبصمة/الوجه (المرحلة 16). المكتبة الوحيدة المضافة في
+    // المراحل 3-20: المصادقة الحيوية لازم تمر على النظام، مينفعش تتكتب بالإيد.
+    // بتجيب معاها androidx.fragment، وعشان كده MainActivity بقت FragmentActivity.
+    implementation("androidx.biometric:biometric:1.1.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // اختبارات وحدة على الـ JVM (منطق الفلوس والتحليل) — من غير أي جهاز.
+    testImplementation("junit:junit:4.13.2")
+    // org.json موجودة في أندرويد نفسه لكن مش في الـ JVM، فمحتاجينها للاختبار
+    // بس عشان نختبر قراءة/كتابة ملف النسخة الاحتياطية.
+    testImplementation("org.json:json:20240303")
+
+    // اختبار ترقية قاعدة البيانات (MigrationTestHelper) — بيتشغّل على جهاز/محاكي.
+    androidTestImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
 }

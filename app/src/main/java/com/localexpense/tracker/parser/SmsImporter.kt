@@ -3,7 +3,7 @@ package com.localexpense.tracker.parser
 import android.content.Context
 import android.provider.Telephony
 import com.localexpense.tracker.data.AppDatabase
-import com.localexpense.tracker.data.insertIfNotDuplicate
+import com.localexpense.tracker.data.ExpenseRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -46,7 +46,7 @@ object SmsImporter {
         var newAdded = 0
 
         val db = AppDatabase.getDatabase(context)
-        val dao = db.expenseDao()
+        val repository = ExpenseRepository(context)
         val customRules = db.smsRuleDao().getEnabledRules()
 
         cursor?.use { c ->
@@ -60,9 +60,12 @@ object SmsImporter {
                 val body = c.getString(bodyIndex) ?: ""
                 val timestamp = c.getLong(dateIndex)
 
-                val expense = SmsParser.parseSms(sender, body, timestamp, customRules)
+                val expense = SmsParser.parseSms(
+                    sender, body, timestamp, customRules,
+                    source = com.localexpense.tracker.data.TransactionSource.IMPORT
+                )
                 if (expense != null) {
-                    if (dao.insertIfNotDuplicate(expense)) {
+                    if (repository.captureTransaction(expense) != null) {
                         newAdded++
                     }
                 }

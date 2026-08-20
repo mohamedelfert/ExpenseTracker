@@ -4,7 +4,7 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.localexpense.tracker.data.AppDatabase
-import com.localexpense.tracker.data.insertIfNotDuplicate
+import com.localexpense.tracker.data.ExpenseRepository
 import com.localexpense.tracker.notification.BudgetAlertChecker
 import com.localexpense.tracker.notification.NotificationHelper
 import com.localexpense.tracker.parser.SmsParser
@@ -53,16 +53,21 @@ class ExpenseNotificationListener : NotificationListenerService() {
             val db = AppDatabase.getDatabase(applicationContext)
             val customRules = db.smsRuleDao().getEnabledRules()
 
-            val expense = SmsParser.parseSms(sender, fullBody, timestamp, customRules)
+            val expense = SmsParser.parseSms(
+                sender, fullBody, timestamp, customRules,
+                source = com.localexpense.tracker.data.TransactionSource.NOTIFICATION
+            )
             if (expense != null) {
                 val dao = db.expenseDao()
 
-                if (dao.insertIfNotDuplicate(expense)) {
+                // نفس نقطة الدخول المستخدمة في SmsReceiver و SmsImporter.
+                val saved = ExpenseRepository(applicationContext).captureTransaction(expense)
+                if (saved != null) {
                     NotificationHelper.showExpenseCapturedNotification(
-                        applicationContext, expense.amount, expense.merchant, expense.bankName
+                        applicationContext, saved.amountMinor, saved.merchant, saved.bankName
                     )
                     BudgetAlertChecker.checkAndNotify(
-                        applicationContext, dao, db.budgetDao(), expense.categoryName, expense.timestamp
+                        applicationContext, dao, db.budgetDao(), saved.categoryName, saved.timestamp
                     )
                 }
             }
