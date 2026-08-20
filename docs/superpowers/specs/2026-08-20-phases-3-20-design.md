@@ -135,9 +135,63 @@ testable on the JVM. That is the equivalent pattern the brief explicitly allows.
 5. Smoke: add expense/income/transfer/refund, capture an SMS, backup → wipe → restore, lock with
    PIN and biometric, export CSV + PDF.
 
+## Second pass — gaps closed after the first sweep
+
+The first pass left five phases partial. All five are now finished:
+
+- **Phase 7** — budget notifications gained a third level: *forecast*. If the current daily average
+  projects past the limit and at least 3 days remain, a proactive alert fires once per month per
+  budget, alongside the existing 80% / 100% levels.
+- **Phase 11** — the anomaly multiplier (2× / 3× / 5× / 8×) is now user-settable in Settings, next
+  to a plain-language explanation of the rule.
+- **Phase 13** — reminders no longer need the app open. `PaymentReminderScheduler` sets a daily
+  inexact `AlarmManager` alarm; `PaymentReminderReceiver` checks due payments against each item's
+  `reminderDaysBefore`, notifies once per due date, and re-arms itself after boot
+  (`RECEIVE_BOOT_COMPLETED`). AlarmManager, not WorkManager — one daily local query does not
+  justify a dependency.
+- **Phase 15** — the calendar now shows income per day (green) and marks days that carry a due
+  recurring/subscription/installment payment.
+- **Phase 17** — the parser source abstraction exists: `sources/TransactionSources.kt` defines each
+  bank/wallet once (bank name, app packages, sender patterns, optional per-source amount/merchant
+  patterns, default type). `SmsParser` resolves the bank from it, and the notification listener's
+  package allow-list is derived from it, so adding a bank is one row in one file.
+- **Transaction editing** — amount and date/time are now editable from the detail screen (a capture
+  with a misread amount was previously only deletable).
+- **Phase 20 / performance** — the home ledger tree no longer loads transactions to sum them. Month
+  and month+bank totals come from SQL aggregations, and a group's transactions are queried only
+  while that group is expanded.
+
+## Design system
+
+Rebuilt as a real system rather than per-screen colors:
+
+- `theme/Color.kt` — emerald brand, warm sand light surfaces, slate dark surfaces, plus **semantic**
+  colors (income / expense / transfer / warning) and two chart palettes (light + dark).
+- `theme/Theme.kt` — full Material 3 light and dark schemes, no dynamic color (income green must
+  stay green regardless of wallpaper), status-bar icons flip with the theme, and a
+  `LocalFinanceColors` composition local so no screen hardcodes a hex value again. Every
+  `Color(0xFF…)` outside the theme package is gone.
+- `theme/Type.kt` — one type scale on the system font (so Arabic renders natively, no font files);
+  amounts use the heaviest display styles because the amount is the point of every financial screen.
+- `theme/Shape.kt` — 8/12/16/22/28dp corners in one place.
+- Window themes for day and night with a matching `windowBackground` (no white flash on launch) and
+  transparent system bars.
+
+### Logo and icons
+
+New mark: three ascending bars with a rising trend line and an end dot — "tracking and analysis",
+not just "a wallet". Adaptive icon with a gradient vector background, plus a **monochrome layer** so
+Android 13+ themed icons work. The notification glyph is the same mark simplified to 24dp as a white
+mask. All vectors — no raster assets, no icon library.
+
 ## Known gaps (deliberate)
 
 - Not built, not run — see above. No claim of verification.
 - Multi-currency stays schema-only; no FX conversion.
 - Room Paging is not used; list queries are capped and all analytics are SQL aggregates.
 - Cloud backup is out of scope (backup writes to a user-chosen file via the system picker).
+- v1–v4 databases still fall back to a destructive migration — their schemas do not exist in any
+  form, so a data-preserving path cannot be written. v5+ is preserved.
+- `categoryId` and a separate `description` field were not added; categories stay name-keyed and
+  `merchant` + `note` cover the text.
+- Reminder alarms are inexact (battery-friendly); a reminder can arrive later in the day than 9am.

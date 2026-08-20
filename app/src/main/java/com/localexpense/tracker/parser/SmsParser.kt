@@ -4,6 +4,7 @@ import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.SmsRule
 import com.localexpense.tracker.data.TransactionSource
 import com.localexpense.tracker.data.TransactionType
+import com.localexpense.tracker.sources.TransactionSources
 import com.localexpense.tracker.util.parseAmountMinor
 import com.localexpense.tracker.util.rawMessageHash
 
@@ -28,21 +29,30 @@ object SmsParser {
     ): Expense? {
         parseWithCustomRules(sender, body, timestamp, customRules, source)?.let { return it }
 
-        // 1. نوع العملية: خصم (مصروف)، إيداع (دخل)، أو استرداد.
-        val type = detectType(body) ?: return null
+        // 1. نوع العملية: خصم (مصروف)، إيداع (دخل)، أو استرداد. لو نص الرسالة
+        // مش حاسم، بناخد النوع الافتراضي للمصدر لو معرّف (المحافظ غالبًا تحويلات).
+        val type = detectType(body)
+            ?: TransactionSources.resolve(sender, body)?.defaultType
+            ?: return null
 
-        // 2. استخراج المبلغ (دعم العملة المصرية EGP, LE, ج.م)
-        val amountRegex = Regex("""(?:مبلغ|EGP|LE|LE\.|ج\.م|جم)\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
-        val amountMatch = amountRegex.find(body) ?: Regex("""([\d,]+(?:\.\d{1,2})?)\s*(?:EGP|LE|ج\.م|جم)""", RegexOption.IGNORE_CASE).find(body)
-        val amountMinor = amountMatch?.groupValues?.getOrNull(1)?.let { parseAmountMinor(it) } ?: return null
+        // 2. المصدر المعروف (لو موجود) بيقدّم أنماطه الخاصة قبل الأنماط العامة
+        val spec = TransactionSources.resolve(sender, body)
 
-        // 3. استخراج اسم الجهة (Merchant)
-        val merchant = extractMerchant(body)
+        // 3. استخراج المبلغ (دعم العملة المصرية EGP, LE, ج.م)
+        val amountMinor = spec?.amountPattern
+            ?.let { pattern -> firstGroup(pattern, body)?.let(::parseAmountMinor) }
+            ?: extractAmountMinor(body)
+            ?: return null
 
-        // 4. تحديد اسم البنك أو المحفظة
-        val bankName = extractBankName(sender, body)
+        // 4. استخراج اسم الجهة (Merchant)
+        val merchant = spec?.merchantPattern
+            ?.let { pattern -> firstGroup(pattern, body)?.takeIf { it.isNotBlank() } }
+            ?: extractMerchant(body)
 
-        // 5. التحديد التلقائي للفئة (Category)
+        // 5. تحديد اسم البنك أو المحفظة من سجل المصادر
+        val bankName = spec?.bankName ?: extractBankName(sender, body)
+
+        // 6. التحديد التلقائي للفئة (Category)
         val categoryName = detectCategory(body, merchant)
 
         return Expense(
@@ -149,6 +159,26 @@ object SmsParser {
         return null
     }
 
+    /** أول مجموعة التقاط في نمط، أو null لو النمط غلط أو مفيش تطابق. */
+    private fun firstGroup(pattern: String, body: String): String? =
+        runCatching {
+            Regex(pattern, RegexOption.IGNORE_CASE).find(body)?.groupValues?.getOrNull(1)?.trim()
+        }.getOrNull()
+
+    /** استخراج المبلغ بالأنماط العامة (بيقبل الصيغتين: العملة قبل أو بعد الرقم). */
+    internal fun extractAmountMinor(body: String): Long? {
+        val labelled = Regex(
+            """(?:مبلغ|EGP|LE|LE\.|ج\.م|جم)\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)""",
+            RegexOption.IGNORE_CASE
+        )
+        val trailing = Regex(
+            """([\d,]+(?:\.\d{1,2})?)\s*(?:EGP|LE|ج\.م|جم)""",
+            RegexOption.IGNORE_CASE
+        )
+        val match = labelled.find(body) ?: trailing.find(body) ?: return null
+        return match.groupValues.getOrNull(1)?.let { parseAmountMinor(it) }
+    }
+
     private fun extractMerchant(body: String): String {
         // عمليات السحب النقدي من الـ ATM
         if (body.contains("سحب", true) || body.contains("ATM", true) || body.contains("ماكينة", true)) {
@@ -180,21 +210,13 @@ object SmsParser {
         return "جهة غير محددة"
     }
 
-    private fun extractBankName(sender: String, body: String): String {
-        val s = sender.uppercase()
-        val b = body.uppercase()
-        return when {
-            s.contains("AHLY") || s.contains("NBE") || b.contains("الأهلي") || b.contains("ALAHLY") -> "Bank-AlAhly"
-            s.contains("MISR") || b.contains("بنك مصر") -> "Banque Misr"
-            s.contains("CIB") || b.contains("CIB") -> "CIB"
-            s.contains("FAISAL") || b.contains("فيصل") -> "Faisal Bank"
-            s.contains("INSTAPAY") || b.contains("INSTAPAY") || b.contains("إنستاباي") -> "InstaPay"
-            s.contains("VF-CASH") || b.contains("فودافون كاش") -> "فودافون كاش"
-            s.contains("QNB") -> "QNB"
-            s.contains("ALEX") || b.contains("الإسكندرية") -> "Bank Alex"
-            else -> sender.ifBlank { "بنك آخر" }
-        }
-    }
+    /**
+     * اسم البنك بقى بيتحدد من سجل المصادر (sources/TransactionSources) مش من
+     * سلسلة when هنا — نفس السجل اللي NotificationListener بيقرا منه
+     * الباكيدجات المسموحة، فمفيش مكانين لازم يتحدّثوا مع كل بنك جديد.
+     */
+    private fun extractBankName(sender: String, body: String): String =
+        TransactionSources.bankNameFor(sender, body)
 
     private fun detectCategory(body: String, merchant: String): String {
         val text = "$body $merchant".lowercase()

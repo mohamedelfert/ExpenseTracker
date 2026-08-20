@@ -72,6 +72,7 @@ fun SettingsScreen(
     var biometric by remember { mutableStateOf(AppLock.isBiometricEnabled(context)) }
     var timeout by remember { mutableStateOf(AppLock.timeout(context)) }
     var showPinDialog by remember { mutableStateOf(false) }
+    var anomalyMultiplier by remember { mutableStateOf(viewModel.settings.anomalyMultiplier) }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -213,6 +214,39 @@ fun SettingsScreen(
                             }
                         }
                     }
+                }
+            }
+
+            // ===== كشف الحركات الشاذة =====
+            item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+            item { SectionHeader("كشف الحركات غير المعتادة") }
+            item {
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    Text(
+                        "الحركة تعتبر غير معتادة لو مبلغها أعلى من ${"%.1f".format(anomalyMultiplier)}× " +
+                            "متوسط فئتها، وبشرط يكون فيه 5 عمليات على الأقل في الفئة — عشان أول " +
+                            "عمليتين في فئة جديدة ما يطلعوش إنذار كذّاب.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(2f, 3f, 5f, 8f).forEach { option ->
+                            FilterChip(
+                                selected = anomalyMultiplier == option,
+                                onClick = {
+                                    anomalyMultiplier = option
+                                    viewModel.settings.anomalyMultiplier = option
+                                },
+                                label = { Text("${option.toInt()}×") }
+                            )
+                        }
+                    }
+                    Text(
+                        "أقل رقم = تنبيهات أكتر.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

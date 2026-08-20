@@ -1,3 +1,13 @@
 <resources>
-    <style name="Theme.ExpenseTracker" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        ثيم النافذة (قبل ما Compose يشتغل): خلفية بلون الثيم عشان مفيش وميض
+        أبيض وقت الفتح، وشريط حالة شفاف عشان التطبيق يبان edge-to-edge.
+        النسخة الليلية في values-night/themes.xml.
+    -->
+    <style name="Theme.ExpenseTracker" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
 </resources>

@@ -73,6 +73,7 @@ fun AppNavHost(
                 onOpenCalendar = { navController.navigate(Routes.CALENDAR) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenInstallments = { navController.navigate(Routes.INSTALLMENTS) },
+                onOpenAssistant = { navController.navigate(Routes.ASSISTANT) },
                 onOpenTransaction = { id -> navController.navigate("${Routes.TRANSACTION_DETAIL}/$id") }
             )
         }

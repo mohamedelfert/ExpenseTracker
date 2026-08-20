@@ -36,15 +36,12 @@ fun SmsProminentDisclosureDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1E1E1E),
-        titleContentColor = Color.White,
-        textContentColor = Color(0xFFE0E0E0),
-        shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(16.dp),
         icon = {
             Icon(
                 imageVector = Icons.Default.Security,
                 contentDescription = null,
-                tint = Color(0xFF80CBC4),
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.width(36.dp)
             )
         },
@@ -73,13 +70,13 @@ fun SmsProminentDisclosureDialog(
                     text = "• التعرف التلقائي على رسائل المعاملات البنكية وتسجيلها كمصروفات داخل التطبيق فقط.",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF80CBC4)
+                    color = MaterialTheme.colorScheme.primary
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF263238)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
@@ -89,14 +86,14 @@ fun SmsProminentDisclosureDialog(
                         Icon(
                             imageVector = Icons.Default.Lock,
                             contentDescription = null,
-                            tint = Color(0xFFA5D6A7),
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.width(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "ضمان الخصوصية: يتم تحليل الرسائل محليًا 100% على جهازك فقط. لا يوجد سيرفر، ولا يتم رفع أو مشاركة أي جزء من رسائلك مع أي طرف خارجي.",
                             fontSize = 11.sp,
-                            color = Color(0xFFA5D6A7),
+                            color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = 16.sp
                         )
                     }
@@ -106,14 +103,13 @@ fun SmsProminentDisclosureDialog(
         confirmButton = {
             Button(
                 onClick = onAccept,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B))
             ) {
-                Text("موافقة ومتابعة", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("موافقة ومتابعة", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("إلغاء", color = Color.Gray)
+                Text("إلغاء")
             }
         }
     )

@@ -8,27 +8,18 @@ import com.localexpense.tracker.data.ExpenseRepository
 import com.localexpense.tracker.notification.BudgetAlertChecker
 import com.localexpense.tracker.notification.NotificationHelper
 import com.localexpense.tracker.parser.SmsParser
+import com.localexpense.tracker.sources.TransactionSources
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class ExpenseNotificationListener : NotificationListenerService() {
 
-    // استخدام Set + تطابق تام (بدل .contains) عشان نمنع أي تطبيق خبيث بإيسم
-    // باكيدج بيحتوي جزئيًا على اسم بنك حقيقي (مثلاً "com.cib.cibmobile.fake")
-    // من إنه يتقبل هنا ويقدر يبعت بيانات مصروفات مزيفة.
-    private val validPackages = setOf(
-        "com.cib.cibmobile", // CIB
-        "com.nbe.nbebm", // NBE
-        "com.alexbank.alexmobile", // Bank Alex
-        "com.faisalbank.faisalmobile", // Faisal
-        "com.vodafone.vfeapp", // Vodafone Cash
-        "com.qnbalahli.mobile", // QNB
-        "com.egyptianbanks.instapay", // InstaPay
-        "com.android.mms", // SMS fallback
-        "com.google.android.apps.messaging", // Google Messages
-        "com.samsung.android.messaging" // Samsung Messages
-    )
+    // قائمة الباكيدجات المسموحة جاية من سجل المصادر (sources/TransactionSources)
+    // — تطابق تام (مش contains) عشان أي تطبيق خبيث باسم باكيدج بيحتوي جزئيًا
+    // على اسم بنك حقيقي (مثلاً "com.cib.cibmobile.fake") ما يقدرش يدخل هنا
+    // ويبعت بيانات مصروفات مزيفة.
+    private val validPackages = TransactionSources.ALLOWED_PACKAGES
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)

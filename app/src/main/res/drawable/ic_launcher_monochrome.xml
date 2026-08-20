@@ -1,38 +1,27 @@
 <!--
-    الطبقة الأمامية للأيقونة: ثلاثة أعمدة صاعدة + خط اتجاه بنقطة في آخره.
-    الشكل ده بيقول "متابعة وتحليل مصاريف" مش "محفظة" بس، وبيفضل مقروء في
-    مقاس 48dp على شريط الإشعارات أو في القائمة.
-    كل الرسم محصور جوه دايرة/مربع الأمان (66dp في المنتصف = 21..87) عشان
-    ميتقطعش مع أي شكل mask بيستخدمه المُشغّل.
+    طبقة أحادية اللون لأيقونات أندرويد 13+ (themed icons): نفس الشكل بلون
+    واحد كامل التعتيم، والنظام هو اللي بيلوّنها حسب خلفية المستخدم.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- الأعمدة الثلاثة (أقراص بنهايات دايرية) -->
     <path
         android:fillColor="#FFFFFF"
-        android:fillAlpha="0.62"
         android:pathData="M26,75 v-10 a7,7 0 0 1 14,0 v10 a7,7 0 0 1 -14,0 z" />
     <path
         android:fillColor="#FFFFFF"
-        android:fillAlpha="0.80"
         android:pathData="M47,75 v-22 a7,7 0 0 1 14,0 v22 a7,7 0 0 1 -14,0 z" />
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M68,75 v-34 a7,7 0 0 1 14,0 v34 a7,7 0 0 1 -14,0 z" />
-
-    <!-- خط الاتجاه الصاعد -->
     <path
         android:strokeColor="#FFFFFF"
         android:strokeWidth="5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:pathData="M28,48 L47,38 L66,27" />
-
-    <!-- نقطة نهاية الخط (القيمة الحالية) -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M75,27 m-8,0 a8,8 0 1 0 16,0 a8,8 0 1 0 -16,0 z" />

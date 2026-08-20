@@ -32,10 +32,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.money.formatMinor
+import com.localexpense.tracker.ui.theme.finance
 import com.localexpense.tracker.util.dayKey
 import com.localexpense.tracker.util.monthLabel
 import com.localexpense.tracker.util.monthRange
@@ -59,13 +61,17 @@ fun CalendarScreen(
     onOpenTransaction: (Long) -> Unit
 ) {
     val daily by finance.dailyTotals.collectAsStateWithLifecycle()
+    val dailyIncome by finance.dailyIncome.collectAsStateWithLifecycle()
     val selectedDay by plans.selectedDay.collectAsStateWithLifecycle()
     val dayTransactions by plans.dayTransactions.collectAsStateWithLifecycle()
     val upcoming by plans.upcoming.collectAsStateWithLifecycle()
 
     val range = monthRange()
     val totalsByDay = daily.associate { it.day to it.total }
+    val incomeByDay = dailyIncome.associate { it.day to it.total }
     val max = (daily.maxOfOrNull { it.total } ?: 1L).coerceAtLeast(1L)
+    // أيام فيها دفعة مستحقة (دورية/اشتراك/قسط) — بتتعلّم بنقطة في الخلية.
+    val dueDays = upcoming.map { dayKey(it.dueDate) }.toSet()
 
     val days = buildList {
         val cal = Calendar.getInstance().apply { timeInMillis = range.start }
@@ -96,9 +102,12 @@ fun CalendarScreen(
                 modifier = Modifier.fillMaxWidth().padding(8.dp)
             ) {
                 items(days) { timestamp ->
-                    val total = totalsByDay[dayKey(timestamp)] ?: 0L
+                    val key = dayKey(timestamp)
+                    val total = totalsByDay[key] ?: 0L
+                    val income = incomeByDay[key] ?: 0L
+                    val hasDue = key in dueDays
                     val intensity = (total.toFloat() / max).coerceIn(0f, 1f)
-                    val isSelected = dayKey(timestamp) == dayKey(selectedDay)
+                    val isSelected = key == dayKey(selectedDay)
                     Box(
                         Modifier
                             .padding(2.dp)
@@ -123,11 +132,28 @@ fun CalendarScreen(
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             }
+                            if (income > 0) {
+                                Text(
+                                    "+" + formatMinor(income, withDecimals = false, withSymbol = false),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.finance.income
+                                )
+                            }
+                            if (hasDue) {
+                                // نقطة = فيه دفعة مستحقة اليوم ده
+                                Text("•", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.finance.warning)
+                            }
                         }
                     }
                 }
             }
 
+            Text(
+                "شدة اللون = حجم الصرف • الرقم الأخضر = دخل • • = دفعة مستحقة",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
             HorizontalDivider()
             SectionHeader("حركات ${dayFormat.format(Date(selectedDay))}")
 

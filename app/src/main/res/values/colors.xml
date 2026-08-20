@@ -1,0 +1,4 @@
+<resources>
+    <!-- خلفية نافذة التطبيق قبل ما Compose يرسم (منع الوميض الأبيض) -->
+    <color name="window_background">#FBFAF6</color>
+</resources>

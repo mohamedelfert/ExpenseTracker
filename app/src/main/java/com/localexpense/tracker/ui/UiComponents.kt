@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.localexpense.tracker.domain.BudgetProgress
 import com.localexpense.tracker.domain.BudgetState
+import com.localexpense.tracker.ui.theme.finance
 import com.localexpense.tracker.money.formatMinor
 
 /**
@@ -36,16 +37,15 @@ import com.localexpense.tracker.money.formatMinor
  * والتقارير يبقوا بنفس الشكل من غير تكرار نفس الكود في كل شاشة.
  */
 
-val ChartPalette = listOf(
-    Color(0xFF0F6E56), Color(0xFFD85A30), Color(0xFFBA7517),
-    Color(0xFF3D6FB4), Color(0xFF8A5FBF), Color(0xFF4C9A8E),
-    Color(0xFFC2554E), Color(0xFF6E6E6E)
-)
+/** لوحة الرسوم من الثيم (بتتقلب مع النهاري/الليلي). */
+val chartPalette: List<Color>
+    @Composable get() = MaterialTheme.finance.chart
 
+@Composable
 fun budgetColor(state: BudgetState): Color = when (state) {
-    BudgetState.SAFE -> Color(0xFF43A047)
-    BudgetState.WARNING -> Color(0xFFFB8C00)
-    BudgetState.EXCEEDED -> Color(0xFFE53935)
+    BudgetState.SAFE -> MaterialTheme.finance.income
+    BudgetState.WARNING -> MaterialTheme.finance.warning
+    BudgetState.EXCEEDED -> MaterialTheme.finance.expense
 }
 
 @Composable
@@ -81,8 +81,8 @@ fun StatCard(
 ) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(12.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        shape = MaterialTheme.shapes.medium
     ) {
         Column(Modifier.padding(12.dp)) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -135,7 +135,7 @@ fun BudgetBar(progress: BudgetProgress, label: String, modifier: Modifier = Modi
  * ومقياس واحد، مش محتاجة 300 كيلوبايت مكتبة.
  */
 @Composable
-fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: Color = ChartPalette[0]) {
+fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: Color = chartPalette[0]) {
     if (values.isEmpty()) return
     val max = (values.maxOrNull() ?: 1L).coerceAtLeast(1L)
     Canvas(modifier = modifier) {
@@ -158,12 +158,13 @@ fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: C
 @Composable
 fun DonutChart(slices: List<Pair<String, Long>>, modifier: Modifier = Modifier) {
     val total = slices.sumOf { it.second }.coerceAtLeast(1L)
+    val palette = chartPalette
     Canvas(modifier = modifier) {
         var startAngle = -90f
         slices.forEachIndexed { index, (_, value) ->
             val sweep = (value.toDouble() / total * 360.0).toFloat()
             drawArc(
-                color = ChartPalette[index % ChartPalette.size],
+                color = palette[index % palette.size],
                 startAngle = startAngle,
                 sweepAngle = sweep,
                 useCenter = false,

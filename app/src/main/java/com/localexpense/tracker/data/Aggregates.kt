@@ -11,6 +11,22 @@ package com.localexpense.tracker.data
  * بالكامل من أي حساب مصروفات.
  */
 
+/**
+ * إجمالي فترة (سنة "2026" أو شهر "2026-08") — شجرة الشاشة الرئيسية بتتبني من
+ * الصفوف دي بدل ما تحمّل الحركات وتجمعها في الواجهة.
+ */
+data class PeriodTotal(
+    val period: String,
+    val total: Long
+)
+
+/** إجمالي شهر معيّن لبنك معيّن — المستوى الثالث في شجرة الشاشة الرئيسية. */
+data class PeriodBankTotal(
+    val period: String,
+    val bankName: String,
+    val total: Long
+)
+
 data class MerchantTotal(
     val merchant: String,
     val total: Long,

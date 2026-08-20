@@ -77,8 +77,8 @@ fun InsightsScreen(finance: FinanceViewModel, onBack: () -> Unit) {
                 val insight = insights[index]
                 val accent = when (insight.level) {
                     InsightLevel.INFO -> MaterialTheme.colorScheme.primary
-                    InsightLevel.WARNING -> Color(0xFFFB8C00)
-                    InsightLevel.ALERT -> Color(0xFFE53935)
+                    InsightLevel.WARNING -> MaterialTheme.finance.warning
+                    InsightLevel.ALERT -> MaterialTheme.finance.expense
                 }
                 Card(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
