@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.domain.InsightLevel
+import com.localexpense.tracker.ui.theme.finance
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 
 /**
