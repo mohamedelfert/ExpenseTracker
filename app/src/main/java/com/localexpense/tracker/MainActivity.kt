@@ -1,11 +1,15 @@
 package com.localexpense.tracker
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.service.notification.NotificationListenerService
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
@@ -17,8 +21,10 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.localexpense.tracker.security.AppLock
+import com.localexpense.tracker.receiver.ExpenseNotificationListener
 import com.localexpense.tracker.ui.AppNavHost
 import com.localexpense.tracker.ui.LockScreen
+import com.localexpense.tracker.ui.RestrictedSettingsDialog
 import com.localexpense.tracker.ui.theme.ExpenseTrackerTheme
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 import com.localexpense.tracker.viewmodel.MainViewModel
@@ -44,6 +50,9 @@ private val SMS_PERMISSIONS = arrayOf(
  * FragmentActivity — راجع security/BiometricAuth.kt. FragmentActivity وارثة من
  * ComponentActivity فكل حاجة في Compose بتفضل شغالة زي ما هي.
  */
+private const val PREFS_UI = "ui_state"
+private const val KEY_RESTRICTED_EXPLAINED = "restricted_settings_explained"
+
 class MainActivity : FragmentActivity() {
 
     private var smsPermissionGranted = mutableStateOf(false)
@@ -53,9 +62,35 @@ class MainActivity : FragmentActivity() {
     private var locked = mutableStateOf(false)
     private var backgroundedAt = 0L
 
+    /** بيتفتح لوحده لو رجع المستخدم من الإعدادات والإذن لسه محجوب. */
+    private var showRestrictedHelp = mutableStateOf(false)
+
+    /** نفس الشرح بس **قبل** ما نودّيه للإعدادات (لما التقييد متوقّع). */
+    private var showRestrictedHelpBefore = mutableStateOf(false)
+    private var expectNotificationRestriction = false
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ -> refreshPermissionState() }
+    ) { results ->
+        refreshPermissionState()
+        // "متسألنيش تاني": مفيش نافذة هتظهر بعد كده، فالطريق الوحيد هو
+        // شاشة معلومات التطبيق — بنقول كده للمستخدم بدل ما يفضل يضغط.
+        val permanentlyDenied = results.any { (permission, granted) ->
+            !granted && !shouldShowRequestPermissionRationale(permission)
+        }
+        if (permanentlyDenied) showRestrictedHelp.value = true
+    }
+
+    /**
+     * طلب أذونات الرسائل. ملفوف في runCatching لأن بعض النسخ المعدّلة من
+     * أندرويد بترمي استثناء لو الإذن مش معلن أو محجوب على مستوى النظام،
+     * وده كان بيقفل التطبيق بدل ما يظهر رسالة.
+     */
+    private fun requestSmsPermissions() {
+        if (!BuildConfig.ENABLE_SMS_IMPORT) return
+        val requested = runCatching { permissionLauncher.launch(SMS_PERMISSIONS) }.isSuccess
+        if (!requested) showRestrictedHelp.value = true
+    }
 
     private fun hasSmsPermissions(): Boolean {
         if (!BuildConfig.ENABLE_SMS_IMPORT) return false
@@ -70,18 +105,118 @@ class MainActivity : FragmentActivity() {
 
     private fun refreshPermissionState() {
         smsPermissionGranted.value = hasSmsPermissions()
-        notificationAccessGranted.value = hasNotificationAccess()
+        val notifGranted = hasNotificationAccess()
+        notificationAccessGranted.value = notifGranted
+
+        // على بعض الأجهزة الخدمة مبتربطش بعد منح الإذن غير بعد إعادة تشغيل
+        // الجهاز. requestRebind بيحلها من غير ريستارت (بيتجاهل بأمان لو الخدمة
+        // مربوطة أصلاً).
+        if (notifGranted) {
+            runCatching {
+                NotificationListenerService.requestRebind(
+                    ComponentName(this, ExpenseNotificationListener::class.java)
+                )
+            }
+        }
     }
 
-    private fun openAppSettings() {
-        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+    /**
+     * كل فتح لشاشة إعدادات نظام بيمر من هنا. بعض أجهزة الشاومي/سامسونج مفيهاش
+     * الشاشة المطلوبة أصلاً، و startActivity ساعتها بيرمي ActivityNotFoundException
+     * وده كان بيقفل التطبيق فجأة في وش المستخدم. دلوقتي كل محاولة ليها بديل،
+     * وآخر بديل هو شاشة معلومات التطبيق، ولو حتى دي مش موجودة بيظهر Toast
+     * بدل ما التطبيق يموت.
+     */
+    private fun startSettingsIntent(vararg candidates: Intent): Boolean {
+        for (intent in candidates) {
+            val launched = runCatching {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                true
+            }.getOrDefault(false)
+            if (launched) return true
+        }
+        Toast.makeText(this, "مش عارف أفتح شاشة الإعدادات على الجهاز ده", Toast.LENGTH_LONG).show()
+        return false
+    }
+
+    private fun appInfoIntent(): Intent =
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = Uri.fromParts("package", packageName, null)
         }
-        startActivity(intent)
+
+    private fun openAppSettings() {
+        startSettingsIntent(appInfoIntent())
+    }
+
+    /**
+     * فتح إعدادات إذن قراءة الإشعارات. الترتيب: الشاشة الخاصة بالتطبيق نفسه
+     * (أندرويد 11+، بتوصّل المستخدم للمفتاح على طول)، بعدين القائمة العامة،
+     * وأخيرًا معلومات التطبيق.
+     */
+    /**
+     * نقطة الدخول من زرار "إذن الإشعارات".
+     *
+     * لو التقييد متوقّع (أندرويد 13+ وتثبيت من بره بلاي) بنشرح الخطوات
+     * **الأول** ونوديه لشاشة معلومات التطبيق يفك التقييد، بدل ما يروح لشاشة
+     * الإشعارات ويلاقي الإذن محجوب من غير أي تفسير. الشرح بيظهر مرة واحدة بس؛
+     * بعد كده الزرار بيوديه على طول.
+     */
+    private fun onNotificationAccessRequested() {
+        val prefs = getSharedPreferences(PREFS_UI, MODE_PRIVATE)
+        val alreadyExplained = prefs.getBoolean(KEY_RESTRICTED_EXPLAINED, false)
+
+        if (!alreadyExplained && isRestrictedSettingsLikely()) {
+            prefs.edit().putBoolean(KEY_RESTRICTED_EXPLAINED, true).apply()
+            showRestrictedHelpBefore.value = true
+            return
+        }
+        openNotificationSettings()
     }
 
     private fun openNotificationSettings() {
-        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        val perAppIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+                Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                ComponentName(this, ExpenseNotificationListener::class.java).flattenToString()
+            )
+        } else {
+            null
+        }
+
+        val launched = if (perAppIntent != null) {
+            startSettingsIntent(
+                perAppIntent,
+                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
+                appInfoIntent()
+            )
+        } else {
+            startSettingsIntent(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS), appInfoIntent())
+        }
+
+        // على أندرويد 13+ والتطبيق متثبّت من APK: النظام بيحجب الإذن ده لحد ما
+        // المستخدم يسمح بالإعدادات المقيّدة. بنجهّز الشرح مسبقًا عشان يظهر
+        // فور ما يرجع من غير ما الإذن يتفعّل.
+        if (launched && isRestrictedSettingsLikely()) {
+            expectNotificationRestriction = true
+        }
+    }
+
+    /**
+     * هل الجهاز غالبًا هيحجب الإذن كـ "إعداد مقيّد"؟ الشرطين: أندرويد 13+،
+     * والتطبيق مش متثبّت من جوجل بلاي.
+     */
+    private fun isRestrictedSettingsLikely(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        val installer = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                packageManager.getInstallSourceInfo(packageName).installingPackageName
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getInstallerPackageName(packageName)
+            }
+        }.getOrNull()
+        return installer != "com.android.vending"
     }
 
     override fun onStop() {
@@ -114,7 +249,29 @@ class MainActivity : FragmentActivity() {
                     if (AppLock.shouldLock(this@MainActivity, backgroundedAt)) {
                         locked.value = true
                     }
+                    // رجع من إعدادات الإشعارات والإذن لسه مش مفعّل على أندرويد
+                    // 13+ = الإعدادات المقيّدة هي السبب الأرجح.
+                    if (expectNotificationRestriction && !hasNotificationAccess()) {
+                        expectNotificationRestriction = false
+                        showRestrictedHelp.value = true
+                    }
                     onPauseOrDispose { }
+                }
+
+                if (showRestrictedHelpBefore.value) {
+                    RestrictedSettingsDialog(
+                        onOpenAppInfo = { openAppSettings() },
+                        onContinue = { openNotificationSettings() },
+                        proactive = true,
+                        onDismiss = { showRestrictedHelpBefore.value = false }
+                    )
+                }
+
+                if (showRestrictedHelp.value) {
+                    RestrictedSettingsDialog(
+                        onOpenAppInfo = { openAppSettings() },
+                        onDismiss = { showRestrictedHelp.value = false }
+                    )
                 }
 
                 if (isLocked) {
@@ -127,14 +284,10 @@ class MainActivity : FragmentActivity() {
                         plans = plans,
                         smsPermissionGranted = smsGranted,
                         notificationAccessGranted = notifGranted,
-                        onRequestSmsPermission = {
-                            // في نسخة "play" الأذونات دي مش معلنة أصلاً في الـ Manifest،
-                            // فمحاولة طلبها هتترفض من النظام تلقائيًا - نتجاهلها بأمان.
-                            if (BuildConfig.ENABLE_SMS_IMPORT) {
-                                permissionLauncher.launch(SMS_PERMISSIONS)
-                            }
-                        },
-                        onRequestNotificationPermission = { openNotificationSettings() },
+                        // في نسخة "play" الأذونات دي مش معلنة أصلاً في الـ Manifest،
+                        // فالدالة بترجع من غير ما تعمل حاجة.
+                        onRequestSmsPermission = { requestSmsPermissions() },
+                        onRequestNotificationPermission = { onNotificationAccessRequested() },
                         onOpenAppSettings = { openAppSettings() }
                     )
                 }

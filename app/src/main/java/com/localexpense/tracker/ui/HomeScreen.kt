@@ -91,6 +91,7 @@ fun HomeScreen(
     var showCleanupConfirmDialog by remember { mutableStateOf(false) }
     var showArchiveDialog by remember { mutableStateOf(false) }
     var showImportRangeDialog by remember { mutableStateOf(false) }
+    var showRestrictedHelp by remember { mutableStateOf(false) }
 
     val expandedYears = remember { mutableStateMapOf<String, Boolean>() }
     val expandedMonths = remember { mutableStateMapOf<String, Boolean>() }
@@ -230,7 +231,8 @@ fun HomeScreen(
                         notifGranted = notificationAccessGranted,
                         onRequestSmsPermission = { showDisclosureDialog = true },
                         onRequestNotificationPermission = onRequestNotificationPermission,
-                        onOpenAppSettings = onOpenAppSettings
+                        onOpenAppSettings = onOpenAppSettings,
+                        onOpenRestrictedHelp = { showRestrictedHelp = true }
                     )
                 }
             }
@@ -431,6 +433,13 @@ fun HomeScreen(
                 showImportRangeDialog = false
                 viewModel.importFromInbox(start, end)
             }
+        )
+    }
+
+    if (showRestrictedHelp) {
+        RestrictedSettingsDialog(
+            onOpenAppInfo = onOpenAppSettings,
+            onDismiss = { showRestrictedHelp = false }
         )
     }
 
@@ -674,7 +683,8 @@ private fun PermissionsCard(
     notifGranted: Boolean,
     onRequestSmsPermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
-    onOpenAppSettings: () -> Unit
+    onOpenAppSettings: () -> Unit,
+    onOpenRestrictedHelp: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -701,6 +711,7 @@ private fun PermissionsCard(
             )
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onOpenRestrictedHelp) { Text("الإذن محجوب؟") }
                 TextButton(onClick = onOpenAppSettings) { Text("إعدادات النظام") }
                 if (!notifGranted) {
                     Spacer(Modifier.width(8.dp))

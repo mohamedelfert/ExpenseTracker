@@ -28,9 +28,13 @@ class ExpenseNotificationListener : NotificationListenerService() {
         val packageName = sbn.packageName
         if (packageName !in validPackages) return
 
-        val extras = sbn.notification.extras
-        val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
-        val text = extras.getString(Notification.EXTRA_TEXT) ?: ""
+        // بعض تطبيقات البنوك بتحط CharSequence مش String في الـ extras، و
+        // getString ساعتها بترمي ClassCastException. getCharSequence أأمن.
+        val extras = sbn.notification?.extras ?: return
+        val title = runCatching { extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() }
+            .getOrNull() ?: ""
+        val text = runCatching { extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() }
+            .getOrNull() ?: ""
         
         val fullBody = "$title $text"
         val sender = title.ifBlank { packageName } // use title as sender, fallback to package
@@ -40,27 +44,36 @@ class ExpenseNotificationListener : NotificationListenerService() {
         // نفس منطق منع التكرار المستخدم في SmsReceiver - مهم جدًا هنا
         // لأن نفس العملية البنكية غالبًا بتوصل كإشعار SMS وكإشعار تطبيق
         // البنك مع بعض، فمن غيره كانت هتتسجل مرتين.
+        // try/catch مطلوب: الكوروتين ده بيشتغل في CoroutineScope مستقل، وأي
+        // استثناء جواه (قاعدة بيانات، Regex غلط في قاعدة مستخدم، إشعار بشكل
+        // غير متوقع) كان بيوصل للـ default handler ويقفل التطبيق كله — والمستخدم
+        // بيشوفه كـ "التطبيق خرج لوحده بعد ما فعّلت إذن الإشعارات".
         CoroutineScope(Dispatchers.IO).launch {
-            val db = AppDatabase.getDatabase(applicationContext)
-            val customRules = db.smsRuleDao().getEnabledRules()
+            try {
+                val db = AppDatabase.getDatabase(applicationContext)
+                val customRules = db.smsRuleDao().getEnabledRules()
 
-            val expense = SmsParser.parseSms(
-                sender, fullBody, timestamp, customRules,
-                source = com.localexpense.tracker.data.TransactionSource.NOTIFICATION
-            )
-            if (expense != null) {
-                val dao = db.expenseDao()
+                val expense = SmsParser.parseSms(
+                    sender, fullBody, timestamp, customRules,
+                    source = com.localexpense.tracker.data.TransactionSource.NOTIFICATION
+                )
+                if (expense != null) {
+                    val dao = db.expenseDao()
 
-                // نفس نقطة الدخول المستخدمة في SmsReceiver و SmsImporter.
-                val saved = ExpenseRepository(applicationContext).captureTransaction(expense)
-                if (saved != null) {
-                    NotificationHelper.showExpenseCapturedNotification(
-                        applicationContext, saved.amountMinor, saved.merchant, saved.bankName
-                    )
-                    BudgetAlertChecker.checkAndNotify(
-                        applicationContext, dao, db.budgetDao(), saved.categoryName, saved.timestamp
-                    )
+                    // نفس نقطة الدخول المستخدمة في SmsReceiver و SmsImporter.
+                    val saved = ExpenseRepository(applicationContext).captureTransaction(expense)
+                    if (saved != null) {
+                        NotificationHelper.showExpenseCapturedNotification(
+                            applicationContext, saved.amountMinor, saved.merchant, saved.bankName
+                        )
+                        BudgetAlertChecker.checkAndNotify(
+                            applicationContext, dao, db.budgetDao(), saved.categoryName, saved.timestamp
+                        )
+                    }
                 }
+            } catch (e: Exception) {
+                // إشعار واحد فشل مش سبب يقفل التطبيق.
+                e.printStackTrace()
             }
         }
     }

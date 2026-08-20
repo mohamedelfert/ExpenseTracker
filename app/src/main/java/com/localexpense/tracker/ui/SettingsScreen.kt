@@ -36,12 +36,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.data.BackupManager
+import com.localexpense.tracker.util.CrashLog
 import com.localexpense.tracker.security.AppLock
 import com.localexpense.tracker.security.BiometricAuth
 import com.localexpense.tracker.viewmodel.BackupState
@@ -66,6 +69,7 @@ fun SettingsScreen(
     onOpenSmsRules: () -> Unit
 ) {
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
     val backupState by viewModel.backupState.collectAsStateWithLifecycle()
 
     var pinSet by remember { mutableStateOf(AppLock.isPinSet(context)) }
@@ -74,6 +78,8 @@ fun SettingsScreen(
     var showPinDialog by remember { mutableStateOf(false) }
     var anomalyMultiplier by remember { mutableStateOf(viewModel.settings.anomalyMultiplier) }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
+    var showRestrictedHelp by remember { mutableStateOf(false) }
+    var crashReport by remember { mutableStateOf(CrashLog.read(context)) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(BackupManager.MIME_TYPE)
@@ -258,6 +264,59 @@ fun SettingsScreen(
             item { TextButton(onClick = onOpenMerchantRules, modifier = Modifier.padding(horizontal = 16.dp)) { Text("قواعد الجهات") } }
             item { TextButton(onClick = onOpenSmsRules, modifier = Modifier.padding(horizontal = 16.dp)) { Text("قواعد رسائل البنوك") } }
 
+            // ===== الأذونات المحجوبة =====
+            item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+            item { SectionHeader("مشاكل الأذونات") }
+            item {
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    Text(
+                        "لو النظام بيقول \"الإعداد غير متاح\" أو بيظهر تحذير أحمر \"تم تقييد " +
+                            "التطبيق\" وقت تفعيل إذن الإشعارات، ده تقييد أمان في أندرويد 13+ " +
+                            "لأي تطبيق متثبّت من APK بره جوجل بلاي.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = { showRestrictedHelp = true }) { Text("إزاي أفكّ التقييد؟") }
+                }
+            }
+
+            // ===== سجل آخر خطأ =====
+            if (crashReport != null) {
+                item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+                item { SectionHeader("آخر خطأ في التطبيق") }
+                item {
+                    Column(Modifier.padding(horizontal = 16.dp)) {
+                        Text(
+                            "التطبيق قفل فجأة آخر مرة. التفاصيل دي متسجّلة على جهازك بس " +
+                                "(مفيش أي إرسال تلقائي) — تنفع تتنسخ وتتبعت لو محتاج مساعدة.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer
+                            )
+                        ) {
+                            Text(
+                                crashReport?.take(1200) ?: "",
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                        Row {
+                            TextButton(onClick = {
+                                clipboard.setText(AnnotatedString(crashReport ?: ""))
+                            }) { Text("نسخ") }
+                            TextButton(onClick = {
+                                CrashLog.clear(context)
+                                crashReport = null
+                            }) { Text("حذف") }
+                        }
+                    }
+                }
+            }
+
             // ===== مركز الخصوصية =====
             item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
             item { SectionHeader("الخصوصية") }
@@ -324,6 +383,22 @@ fun SettingsScreen(
                 }) { Text("حفظ") }
             },
             dismissButton = { TextButton(onClick = { showPinDialog = false }) { Text("إلغاء") } }
+        )
+    }
+
+    if (showRestrictedHelp) {
+        RestrictedSettingsDialog(
+            onOpenAppInfo = {
+                runCatching {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.fromParts("package", context.packageName, null)
+                        )
+                    )
+                }
+            },
+            onDismiss = { showRestrictedHelp = false }
         )
     }
 
