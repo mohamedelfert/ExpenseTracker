@@ -28,11 +28,11 @@ object BudgetAlertChecker {
         transactionTimestamp: Long
     ) {
         val budget = budgetDao.getBudget(categoryName) ?: return
-        if (budget.limitAmount <= 0.0) return
+        if (budget.limitMinor <= 0L) return
 
         val (monthStart, monthEnd) = monthRange(transactionTimestamp)
-        val spent = expenseDao.getCategoryTotalBetween(categoryName, monthStart, monthEnd) ?: 0.0
-        val ratio = spent / budget.limitAmount
+        val spent = expenseDao.getCategoryTotalBetween(categoryName, monthStart, monthEnd) ?: 0L
+        val ratio = spent.toDouble() / budget.limitMinor
 
         val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(java.util.Date(transactionTimestamp))
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -42,7 +42,7 @@ object BudgetAlertChecker {
                 val prefKey = "exceeded_${categoryName}_$monthKey"
                 if (!prefs.getBoolean(prefKey, false)) {
                     NotificationHelper.showBudgetAlertNotification(
-                        context, categoryName, spent, budget.limitAmount, exceeded = true
+                        context, categoryName, spent, budget.limitMinor, exceeded = true
                     )
                     prefs.edit().putBoolean(prefKey, true).apply()
                 }
@@ -51,7 +51,7 @@ object BudgetAlertChecker {
                 val prefKey = "warning_${categoryName}_$monthKey"
                 if (!prefs.getBoolean(prefKey, false)) {
                     NotificationHelper.showBudgetAlertNotification(
-                        context, categoryName, spent, budget.limitAmount, exceeded = false
+                        context, categoryName, spent, budget.limitMinor, exceeded = false
                     )
                     prefs.edit().putBoolean(prefKey, true).apply()
                 }

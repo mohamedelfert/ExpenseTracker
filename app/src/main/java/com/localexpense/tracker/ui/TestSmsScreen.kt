@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.localexpense.tracker.money.formatMinor
 import com.localexpense.tracker.viewmodel.MainViewModel
 import com.localexpense.tracker.viewmodel.SmsTestResult
 
@@ -106,7 +107,7 @@ fun TestSmsScreen(
                             color = if (r.matched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                         )
                         if (r.matched) {
-                            Text("المبلغ: ${r.amount}")
+                            Text("المبلغ: ${r.amountMinor?.let { formatMinor(it) } ?: "-"}")
                             Text("الجهة: ${r.merchant}")
                             Text("البنك: ${r.bankName}")
                             Text("الفئة المقترحة: ${r.categoryName}")

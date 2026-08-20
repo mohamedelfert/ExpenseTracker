@@ -12,23 +12,23 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses ORDER BY timestamp ASC")
     suspend fun getAllOnce(): List<Expense>
 
-    @Query("SELECT SUM(amount) FROM expenses WHERE timestamp BETWEEN :startTime AND :endTime")
-    fun observeTotalBetween(startTime: Long, endTime: Long): Flow<Double?>
+    @Query("SELECT SUM(amountMinor) FROM expenses WHERE timestamp BETWEEN :startTime AND :endTime")
+    fun observeTotalBetween(startTime: Long, endTime: Long): Flow<Long?>
 
-    @Query("SELECT bankName AS bankName, SUM(amount) AS total FROM expenses GROUP BY bankName")
+    @Query("SELECT bankName AS bankName, SUM(amountMinor) AS total FROM expenses GROUP BY bankName")
     fun observeTotalsBySource(): Flow<List<SourceTotal>>
 
-    @Query("SELECT categoryName AS categoryName, SUM(amount) AS total FROM expenses GROUP BY categoryName")
+    @Query("SELECT categoryName AS categoryName, SUM(amountMinor) AS total FROM expenses GROUP BY categoryName")
     fun observeTotalsByCategory(): Flow<List<CategoryTotal>>
 
     // استعلام محدد لحساب إجمالي الفئات لشهر محدد
-    @Query("SELECT categoryName AS categoryName, SUM(amount) AS total FROM expenses WHERE timestamp BETWEEN :startTime AND :endTime GROUP BY categoryName")
+    @Query("SELECT categoryName AS categoryName, SUM(amountMinor) AS total FROM expenses WHERE timestamp BETWEEN :startTime AND :endTime GROUP BY categoryName")
     fun observeTotalsByCategoryBetween(startTime: Long, endTime: Long): Flow<List<CategoryTotal>>
 
     // نفس الفكرة لكن كـ one-shot query (مش Flow) - مستخدم في فحص تنبيهات
     // الميزانية فور تسجيل مصروف جديد.
-    @Query("SELECT SUM(amount) FROM expenses WHERE categoryName = :categoryName AND timestamp BETWEEN :startTime AND :endTime")
-    suspend fun getCategoryTotalBetween(categoryName: String, startTime: Long, endTime: Long): Double?
+    @Query("SELECT SUM(amountMinor) FROM expenses WHERE categoryName = :categoryName AND timestamp BETWEEN :startTime AND :endTime")
+    suspend fun getCategoryTotalBetween(categoryName: String, startTime: Long, endTime: Long): Long?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: Expense): Long
@@ -51,13 +51,13 @@ interface ExpenseDao {
     @Query(
         """
         SELECT COUNT(*) FROM expenses
-        WHERE amount = :amount
+        WHERE amountMinor = :amountMinor
         AND bankName = :bankName
         AND timestamp BETWEEN :startTime AND :endTime
         """
     )
     suspend fun existsSimilar(
-        amount: Double,
+        amountMinor: Long,
         bankName: String,
         startTime: Long,
         endTime: Long
@@ -89,7 +89,7 @@ suspend fun ExpenseDao.insertIfNotDuplicate(
     if (exactDuplicate) return false
 
     val similarDuplicate = existsSimilar(
-        amount = expense.amount,
+        amountMinor = expense.amountMinor,
         bankName = expense.bankName,
         startTime = expense.timestamp - dedupWindowMillis,
         endTime = expense.timestamp + dedupWindowMillis

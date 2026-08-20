@@ -41,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.localexpense.tracker.data.RecurringExpense
+import com.localexpense.tracker.money.formatMinor
+import com.localexpense.tracker.util.parseAmountMinor
 import com.localexpense.tracker.viewmodel.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,7 +119,7 @@ private fun RecurringExpenseRow(expense: RecurringExpense, onDelete: () -> Unit)
         ) {
             Column {
                 Text(expense.merchant, style = MaterialTheme.typography.titleMedium, color = Color.White)
-                Text("${expense.amount} ج.م | فئة: ${expense.categoryName}", style = MaterialTheme.typography.bodyMedium, color = Color.LightGray)
+                Text("${formatMinor(expense.amountMinor)} | فئة: ${expense.categoryName}", style = MaterialTheme.typography.bodyMedium, color = Color.LightGray)
                 Text("يوم ${expense.dayOfMonth} في الشهر", style = MaterialTheme.typography.bodySmall, color = Color(0xFF80CBC4))
             }
             IconButton(onClick = onDelete) {
@@ -130,7 +132,7 @@ private fun RecurringExpenseRow(expense: RecurringExpense, onDelete: () -> Unit)
 @Composable
 private fun AddRecurringExpenseDialog(
     onDismiss: () -> Unit,
-    onConfirm: (Double, String, String, String, Int) -> Unit
+    onConfirm: (Long, String, String, String, Int) -> Unit
 ) {
     var amount by remember { mutableStateOf("") }
     var merchant by remember { mutableStateOf("") }
@@ -173,7 +175,7 @@ private fun AddRecurringExpenseDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                val a = amount.toDoubleOrNull() ?: return@TextButton
+                val a = parseAmountMinor(amount) ?: return@TextButton
                 val d = dayOfMonth.toIntOrNull() ?: return@TextButton
                 if (d in 1..31 && merchant.isNotBlank()) {
                     onConfirm(a, merchant, bankName, categoryName, d)

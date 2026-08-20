@@ -29,13 +29,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.localexpense.tracker.data.Category
-import com.localexpense.tracker.util.parseAmount
+import com.localexpense.tracker.util.parseAmountMinor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseScreen(
     categories: List<Category>,
-    onSaveExpense: (amount: Double, merchant: String, categoryName: String) -> Unit,
+    onSaveExpense: (amountMinor: Long, merchant: String, categoryName: String) -> Unit,
     onBack: () -> Unit
 ) {
     var amountText by remember { mutableStateOf("") }
@@ -114,10 +114,10 @@ fun AddExpenseScreen(
 
             Button(
                 onClick = {
-                    val amount = parseAmount(amountText)
+                    val amount = parseAmountMinor(amountText)
                     when {
                         amount == null -> errorMessage = "اكتب رقم صحيح في خانة المبلغ"
-                        amount <= 0 -> errorMessage = "المبلغ لازم يكون أكبر من صفر"
+                        amount <= 0L -> errorMessage = "المبلغ لازم يكون أكبر من صفر"
                         merchantText.isBlank() -> errorMessage = "اكتب وصف أو اسم الجهة"
                         else -> {
                             onSaveExpense(
