@@ -29,10 +29,12 @@ import com.localexpense.tracker.parser.SmsParser
 import com.localexpense.tracker.util.ExportSink
 import com.localexpense.tracker.util.monthRange
 import com.localexpense.tracker.util.parseAmountMinor
+import com.localexpense.tracker.util.CrashLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -87,45 +89,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val settings = AppSettings(application)
 
     val expenses: StateFlow<List<Expense>> = repository.observeExpenses()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.expenses", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val recentTransactions: StateFlow<List<Expense>> = repository.observeRecent(10)
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.recentTransactions", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val currentMonth: Pair<Long, Long> get() = monthRange().let { it.start to it.end }
 
     val monthTotalsBySource: StateFlow<List<SourceTotal>> = repository.observeTotalsBySource()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.monthTotalsBySource", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val monthTotalsByCategory: StateFlow<List<CategoryTotal>> = currentMonth.let { (s, e) ->
         repository.observeTotalsByCategoryBetween(s, e)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.monthTotalsByCategory", it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val monthTotal: StateFlow<Long> = monthTotalsByCategory
         .map { list -> list.sumOf { it.total } }
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.monthTotal", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     val categories: StateFlow<List<Category>> = repository.observeCategories()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.categories", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val accounts: StateFlow<List<Account>> = repository.observeAccounts()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.accounts", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val merchants: StateFlow<List<Merchant>> = repository.observeMerchants()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.merchants", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val merchantRules: StateFlow<List<MerchantRule>> = repository.observeMerchantRules()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.merchantRules", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val bankNames: StateFlow<List<String>> = repository.observeBankNames()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.bankNames", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // شجرة الشاشة الرئيسية (سنة -> شهر -> بنك) بتتبني من تجميعات SQL: صفوف
     // قليلة بدل ما نحمّل كل الحركات ونجمعها في الـ Compose.
     val monthTotals: StateFlow<List<PeriodTotal>> = repository.observeMonthTotals()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.monthTotals", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val monthBankTotals: StateFlow<List<PeriodBankTotal>> = repository.observeMonthBankTotals()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.monthBankTotals", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** حركات مجموعة واحدة (شهر + بنك) — بتتحمّل بس لما المستخدم يفتحها. */
@@ -146,16 +161,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val anomalyWarning: StateFlow<String?> = _anomalyWarning.asStateFlow()
 
     val rules: StateFlow<List<SmsRule>> = repository.observeRules()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.rules", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val budgets: StateFlow<List<Budget>> = repository.observeBudgets()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.budgets", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val overallBudget: StateFlow<Long> = repository.observeOverallBudget()
         .map { it ?: 0L }
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.overallBudget", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     val recurringExpenses: StateFlow<List<RecurringExpense>> = repository.observeRecurringExpenses()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.recurringExpenses", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ===== البحث والفلاتر (المرحلة 3) =====
@@ -165,6 +184,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val searchResults: StateFlow<List<Expense>> = _filter
         .flatMapLatest { repository.search(it) }
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "MainViewModel.searchResults", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun updateFilter(transform: (TransactionFilter) -> TransactionFilter) {
@@ -192,7 +212,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * الريبو عشان يدعم كل أنواع التكرار مش الشهري بس).
      */
     private fun checkRecurringExpenses() {
-        viewModelScope.launch {
+        launchLogging("MainViewModel.checkRecurringExpenses") {
             val inserted = withContext(Dispatchers.IO) { repository.processDueRecurring() }
             for (expense in inserted) {
                 checkBudgetAlerts(expense.categoryName, expense.timestamp)

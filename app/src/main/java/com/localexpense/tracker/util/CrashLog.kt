@@ -19,6 +19,12 @@ import java.util.Locale
 object CrashLog {
 
     private const val FILE_NAME = "last_crash.txt"
+
+    /**
+     * أخطاء مش قاتلة (التطبيق كمّل شغل): بتتكتب في ملف تاني عشان متمسحش
+     * تقرير الانهيار الحقيقي من التشغيلة اللي فاتت قبل ما المستخدم يقراه.
+     */
+    private const val ERROR_FILE_NAME = "last_error.txt"
     private const val MAX_CHARS = 12_000
 
     /** بيتركّب مرة واحدة في [com.localexpense.tracker.ExpenseApp]. */
@@ -35,26 +41,54 @@ object CrashLog {
     }
 
     private fun write(context: Context, thread: Thread, throwable: Throwable) {
+        File(context.filesDir, FILE_NAME).writeText(report(thread.name, throwable))
+    }
+
+    /**
+     * بيسجّل خطأ **مش قاتل** - التطبيق بيفضل شغّال. الفايدة: لو فتح قاعدة
+     * البيانات فشل مثلاً، التطبيق بيفتح عادي والسبب بيبان في شاشة الإعدادات
+     * بدل ما التطبيق يقفل في وش المستخدم من غير أي معلومة.
+     *
+     * ملفوفة في runCatching لأن دالة تسجيل الأخطاء نفسها مينفعش تكون سبب
+     * انهيار جديد.
+     */
+    fun recordNonFatal(context: Context, label: String, throwable: Throwable) {
+        runCatching {
+            File(context.applicationContext.filesDir, ERROR_FILE_NAME)
+                .writeText(report(label, throwable))
+        }
+    }
+
+    private fun report(label: String, throwable: Throwable): String {
         val stack = StringWriter().also { throwable.printStackTrace(PrintWriter(it)) }.toString()
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-        val text = buildString {
+        return buildString {
             appendLine("time: $timestamp")
-            appendLine("thread: ${thread.name}")
+            appendLine("where: $label")
             appendLine("device: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
             appendLine("android: ${android.os.Build.VERSION.SDK_INT}")
             appendLine()
             append(stack)
         }.take(MAX_CHARS)
-
-        File(context.filesDir, FILE_NAME).writeText(text)
     }
 
+    /** بيرجع التقريرين مع بعض (انهيار + خطأ غير قاتل) لو الاتنين موجودين. */
     fun read(context: Context): String? {
-        val file = File(context.applicationContext.filesDir, FILE_NAME)
-        return if (file.exists()) runCatching { file.readText() }.getOrNull() else null
+        val dir = context.applicationContext.filesDir
+        val sections = listOf(
+            "انهيار" to File(dir, FILE_NAME),
+            "خطأ (التطبيق كمّل)" to File(dir, ERROR_FILE_NAME)
+        ).mapNotNull { (title, file) ->
+            if (!file.exists()) return@mapNotNull null
+            val body = runCatching { file.readText() }.getOrNull() ?: return@mapNotNull null
+            "===== $title =====\n$body"
+        }
+        return sections.joinToString("\n\n").ifBlank { null }
     }
 
     fun clear(context: Context) {
-        runCatching { File(context.applicationContext.filesDir, FILE_NAME).delete() }
+        val dir = context.applicationContext.filesDir
+        runCatching { File(dir, FILE_NAME).delete() }
+        runCatching { File(dir, ERROR_FILE_NAME).delete() }
     }
 }

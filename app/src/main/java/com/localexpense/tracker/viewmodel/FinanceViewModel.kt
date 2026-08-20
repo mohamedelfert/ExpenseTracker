@@ -19,8 +19,10 @@ import com.localexpense.tracker.util.PdfReport
 import com.localexpense.tracker.util.monthLabel
 import com.localexpense.tracker.util.monthRange
 import com.localexpense.tracker.util.monthRangeOffset
+import com.localexpense.tracker.util.CrashLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,19 +62,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     /** الرسم البياني اليومي للشهر المعروض. */
     val dailyTotals: StateFlow<List<DayTotal>> = monthRange().let { range ->
         repository.observeDailyTotalsBetween(range.start, range.end)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "FinanceViewModel.dailyTotals", it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** الدخل اليومي — التقويم بيعرضه جنب الصرف (المرحلة 15). */
     val dailyIncome: StateFlow<List<DayTotal>> = monthRange().let { range ->
         repository.observeDailyIncomeBetween(range.start, range.end)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "FinanceViewModel.dailyIncome", it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         refresh()
     }
 
     fun refresh() {
-        viewModelScope.launch {
+        launchLogging("FinanceViewModel.refresh") {
             val context = withContext(Dispatchers.IO) {
                 repository.buildFinancialContext(_monthOffset.value)
             }

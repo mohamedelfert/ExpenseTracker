@@ -99,19 +99,33 @@ object DatabaseEncryptionMigration {
         }
     }
 
-    private fun isReadableWithPassphrase(dbFile: File, passphrase: String): Boolean {
+    /**
+     * هل الملف ده يتفتح بالمفتاح ده؟ بيستخدمها كمان
+     * [AppDatabase.getDatabase] عشان يكتشف ملف بمفتاح مفقود قبل ما Room
+     * يحاول يفتحه ويقفل التطبيق.
+     */
+    internal fun isReadableWithPassphrase(dbFile: File, passphrase: String): Boolean {
+        var db: SQLiteDatabase? = null
         return try {
-            val db = SQLiteDatabase.openDatabase(
+            // OPEN_READWRITE مقصودة مش READONLY: لو فيه ملف -wal محتاج
+            // recovery، الفتح للقراءة بس بيفشل على قاعدة بيانات **سليمة**،
+            // وكنا هنحكم عليها إنها تالفة وننقلها على جنب بالغلط.
+            db = SQLiteDatabase.openDatabase(
                 dbFile.path,
                 passphrase,
                 null,
-                SQLiteDatabase.OPEN_READONLY,
+                SQLiteDatabase.OPEN_READWRITE,
                 null
             )
-            db.close()
+            // لازم قراءة فعلية: SQLCipher مبيتحققش من صحة المفتاح وقت الفتح
+            // لوحده، بيتحقق أول ما يقرا صفحة من الملف. من غير السطر ده الدالة
+            // كانت بترجع true لمفتاح غلط.
+            db.rawQuery("PRAGMA user_version", null as Array<String>?).use { it.moveToFirst() }
             true
         } catch (e: Exception) {
             false
+        } finally {
+            runCatching { db?.close() }
         }
     }
 }

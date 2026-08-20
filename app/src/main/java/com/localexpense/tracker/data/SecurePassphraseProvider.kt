@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import com.localexpense.tracker.util.CrashLog
 import java.security.Key
 import java.security.KeyStore
 import java.security.SecureRandom
@@ -50,7 +51,27 @@ object SecurePassphraseProvider {
         val existingIv = prefs.getString(PREF_KEY_IV, null)
 
         if (existingEncrypted != null && existingIv != null) {
-            return decryptPassphrase(existingEncrypted, existingIv)
+            // فك التشفير ممكن يفشل لأسباب خارجة عن إرادتنا: مفتاح الـ Keystore
+            // بيتلغي لو المستخدم غيّر قفل الشاشة، ولو التطبيق اتثبّت فوق بيانات
+            // قديمة (reinstall من غير مسح البيانات) الـ prefs بتفضل موجودة
+            // والمفتاح بيبقى مروّح. قبل كده الاستثناء ده كان بيطلع من كونستركتور
+            // الـ ViewModel فالتطبيق كان بيقفل على طول عند كل فتح.
+            //
+            // الحل: نسجّل السبب ونولّد مفتاح جديد. البيانات القديمة المشفّرة
+            // بالمفتاح المفقود مش قابلة للاسترجاع رياضيًا، وملف قاعدة البيانات
+            // بيتنقل على جنب (مش بيتمسح) في AppDatabase.getDatabase.
+            val decrypted = runCatching { decryptPassphrase(existingEncrypted, existingIv) }
+            decrypted.getOrNull()?.let { return it }
+            CrashLog.recordNonFatal(
+                context,
+                "SecurePassphraseProvider: فشل فك تشفير مفتاح قاعدة البيانات - بيتولّد مفتاح جديد",
+                decrypted.exceptionOrNull() ?: IllegalStateException("unknown")
+            )
+            // لازم نمسح مفتاح الـ Keystore نفسه: لو اتلغى
+            // (KeyPermanentlyInvalidatedException) بيفضل موجود بالاسم بس مش
+            // صالح للاستخدام، فـ getOrCreateWrappingKey كان هيرجّعه تاني
+            // والتشفير بالمفتاح الجديد كان هيفشل ويقفل التطبيق برضه.
+            deleteWrappingKey()
         }
 
         val newPassphrase = generateRandomPassphrase()
@@ -70,6 +91,13 @@ object SecurePassphraseProvider {
             randomBytes,
             Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
         )
+    }
+
+    /** بيشيل مفتاح التغليف من الـ Keystore عشان اللي بعده يتولّد نضيف. */
+    private fun deleteWrappingKey() {
+        runCatching {
+            KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }.deleteEntry(KEYSTORE_ALIAS)
+        }
     }
 
     private fun getOrCreateWrappingKey(): Key {

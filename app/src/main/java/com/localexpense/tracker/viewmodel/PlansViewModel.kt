@@ -11,8 +11,10 @@ import com.localexpense.tracker.data.RecurringExpense
 import com.localexpense.tracker.domain.UpcomingPayment
 import com.localexpense.tracker.domain.firstDueDateForDayOfMonth
 import com.localexpense.tracker.util.dayRange
+import com.localexpense.tracker.util.CrashLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,12 +32,15 @@ class PlansViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = ExpenseRepository(application)
 
     val recurring: StateFlow<List<RecurringExpense>> = repository.observeRecurringExpenses()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "PlansViewModel.recurring", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val subscriptions: StateFlow<List<RecurringExpense>> = repository.observeSubscriptions()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "PlansViewModel.subscriptions", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val installments: StateFlow<List<Installment>> = repository.observeInstallments()
+        .catch { CrashLog.recordNonFatal(getApplication<Application>(), "PlansViewModel.installments", it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _upcoming = MutableStateFlow<List<UpcomingPayment>>(emptyList())
@@ -54,14 +59,14 @@ class PlansViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshUpcoming() {
-        viewModelScope.launch {
+        launchLogging("PlansViewModel.refreshUpcoming") {
             _upcoming.value = withContext(Dispatchers.IO) { repository.upcomingPayments() }
         }
     }
 
     fun selectDay(timestamp: Long) {
         _selectedDay.value = timestamp
-        viewModelScope.launch {
+        launchLogging("PlansViewModel.selectDay") {
             val range = dayRange(timestamp)
             _dayTransactions.value = withContext(Dispatchers.IO) {
                 repository.searchOnce(
