@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import com.localexpense.tracker.security.AppLock
 import com.localexpense.tracker.security.BiometricAuth
 
@@ -38,19 +39,10 @@ fun LockScreen(onUnlocked: () -> Unit) {
     val context = LocalContext.current
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    // الزرار بيظهر لو المستخدم مفعّل البصمة، حتى لو الحالة مش متاحة دلوقتي —
-    // ساعتها بيوضّح السبب بدل ما يختفي من غير تفسير.
-    val biometricRequested = AppLock.isBiometricEnabled(context)
-    val biometricEnabled = biometricRequested && BiometricAuth.isAvailable(context)
+    val biometricEnabled = AppLock.isBiometricEnabled(context) && BiometricAuth.isAvailable(context)
 
     fun tryBiometric() {
-        // الـ Context في Compose ممكن يكون ContextWrapper، فالـ cast المباشر
-        // كان بيفشل بصمت وما يحصلش أي حاجة لما تضغط "استخدم البصمة".
-        val activity = BiometricAuth.findActivity(context)
-        if (activity == null) {
-            error = "تعذّر فتح شاشة البصمة، استخدم الرقم السري"
-            return
-        }
+        val activity = context as? FragmentActivity ?: return
         BiometricAuth.prompt(
             activity = activity,
             onSuccess = onUnlocked,
@@ -101,18 +93,10 @@ fun LockScreen(onUnlocked: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         ) { Text("فتح") }
 
-        if (biometricRequested) {
+        if (biometricEnabled) {
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { tryBiometric() }, modifier = Modifier.fillMaxWidth()) {
                 Text("استخدم البصمة")
-            }
-            BiometricAuth.unavailableReason(context)?.let { reason ->
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    reason,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
