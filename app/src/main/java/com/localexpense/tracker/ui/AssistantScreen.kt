@@ -36,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.localexpense.tracker.domain.Assistant
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 
@@ -49,8 +48,7 @@ import com.localexpense.tracker.viewmodel.FinanceViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AssistantScreen(onBack: () -> Unit) {
-    val finance: FinanceViewModel = viewModel()
+fun AssistantScreen(finance: FinanceViewModel, onBack: () -> Unit) {
     val messages by finance.assistantMessages.collectAsStateWithLifecycle()
     val context by finance.financialContext.collectAsStateWithLifecycle()
     var question by remember { mutableStateOf("") }

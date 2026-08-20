@@ -33,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 import com.localexpense.tracker.viewmodel.MainViewModel
 
@@ -45,9 +44,9 @@ import com.localexpense.tracker.viewmodel.MainViewModel
 @Composable
 fun ReportsScreen(
     viewModel: MainViewModel,
+    finance: FinanceViewModel,
     onBack: () -> Unit
 ) {
-    val finance: FinanceViewModel = viewModel()
     val message by finance.exportMessage.collectAsStateWithLifecycle()
     var includeRaw by remember { mutableStateOf(viewModel.includeRawTextInExport) }
     var pendingKind by remember { mutableStateOf<FinanceViewModel.ReportKind?>(null) }

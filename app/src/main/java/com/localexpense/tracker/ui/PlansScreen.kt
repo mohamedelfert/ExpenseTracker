@@ -43,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.localexpense.tracker.data.Frequency
 import com.localexpense.tracker.data.RecurringExpense
 import com.localexpense.tracker.domain.monthlyEquivalentMinor
@@ -60,8 +59,7 @@ import java.util.Locale
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlansScreen(onBack: () -> Unit) {
-    val plans: PlansViewModel = viewModel()
+fun PlansScreen(plans: PlansViewModel, onBack: () -> Unit) {
     val recurring by plans.recurring.collectAsStateWithLifecycle()
     val subscriptions by plans.subscriptions.collectAsStateWithLifecycle()
     val upcoming by plans.upcoming.collectAsStateWithLifecycle()

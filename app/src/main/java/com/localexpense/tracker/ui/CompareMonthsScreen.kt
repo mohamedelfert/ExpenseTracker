@@ -26,7 +26,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.localexpense.tracker.money.formatMinor
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 
@@ -36,8 +35,7 @@ import com.localexpense.tracker.viewmodel.FinanceViewModel
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CompareMonthsScreen(onBack: () -> Unit) {
-    val finance: FinanceViewModel = viewModel()
+fun CompareMonthsScreen(finance: FinanceViewModel, onBack: () -> Unit) {
     val context by finance.financialContext.collectAsStateWithLifecycle()
 
     Scaffold(

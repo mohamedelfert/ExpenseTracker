@@ -36,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.localexpense.tracker.money.minorToPlainDecimal
 import com.localexpense.tracker.util.parseAmountMinor
 import com.localexpense.tracker.viewmodel.FinanceViewModel
@@ -53,9 +52,9 @@ import com.localexpense.tracker.viewmodel.MainViewModel
 @Composable
 fun BudgetsScreen(
     viewModel: MainViewModel,
+    finance: FinanceViewModel,
     onBack: () -> Unit
 ) {
-    val finance: FinanceViewModel = viewModel()
     val context by finance.financialContext.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val overall by viewModel.overallBudget.collectAsStateWithLifecycle()
