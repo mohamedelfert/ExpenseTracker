@@ -593,20 +593,15 @@ private fun BankTransactions(
     bankName: String,
     onOpenTransaction: (Long) -> Unit
 ) {
-    val transactions by remember(month, bankName) {
-        viewModel.observeGroupTransactions(month, bankName)
-    }.collectAsStateWithLifecycle(initialValue = emptyList())
+    val flow = remember(month, bankName) { viewModel.observeGroupTransactions(month, bankName) }
+    val transactions by flow.collectAsStateWithLifecycle(emptyList())
 
     val timeFormatter = remember { SimpleDateFormat("dd MMMM - hh:mm a", Locale("ar")) }
 
     Column(Modifier.padding(start = 52.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)) {
-        if (transactions.isEmpty()) {
-            Text(
-                "جاري التحميل...",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        // مفيش رسالة "جاري التحميل": المجموعة دي إجماليها معروف أصلاً من
+        // التجميع، فالصفوف بتظهر في إطار واحد والرسالة كانت هتوهم إن فيه
+        // مشكلة في المجموعات الفاضية.
         transactions.forEach { expense ->
             TransactionRow(
                 expense = expense,

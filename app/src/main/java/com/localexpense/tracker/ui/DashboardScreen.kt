@@ -224,10 +224,11 @@ fun DashboardScreen(
                 val categories = ctx.categoryTotals.toList().sortedByDescending { it.second }
                 items(categories.size) { index ->
                     val (name, total) = categories[index]
+                    val palette = chartPalette()
                     AmountRow(
                         label = name,
                         amountMinor = total,
-                        leading = { LegendDot(chartPalette[index % chartPalette.size]) },
+                        leading = { LegendDot(palette[index % palette.size]) },
                         trailingText = "${(total * 100 / ctx.summary.netSpentMinor.coerceAtLeast(1)).toInt()}%"
                     )
                 }

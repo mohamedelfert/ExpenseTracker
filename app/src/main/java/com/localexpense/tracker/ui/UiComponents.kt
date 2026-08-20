@@ -37,9 +37,14 @@ import com.localexpense.tracker.money.formatMinor
  * والتقارير يبقوا بنفس الشكل من غير تكرار نفس الكود في كل شاشة.
  */
 
-/** لوحة الرسوم من الثيم (بتتقلب مع النهاري/الليلي). */
-val chartPalette: List<Color>
-    @Composable get() = MaterialTheme.finance.chart
+/**
+ * لوحة الرسوم من الثيم (بتتقلب مع النهاري/الليلي).
+ *
+ * دالة مش property بـ @Composable getter: خاصية عامة بـ getter مركّب مش
+ * مدعومة بشكل موثوق في كل نسخ الـ Compose compiler plugin.
+ */
+@Composable
+fun chartPalette(): List<Color> = MaterialTheme.finance.chart
 
 @Composable
 fun budgetColor(state: BudgetState): Color = when (state) {
@@ -135,8 +140,9 @@ fun BudgetBar(progress: BudgetProgress, label: String, modifier: Modifier = Modi
  * ومقياس واحد، مش محتاجة 300 كيلوبايت مكتبة.
  */
 @Composable
-fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: Color = chartPalette[0]) {
+fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: Color? = null) {
     if (values.isEmpty()) return
+    val color = barColor ?: chartPalette().first()
     val max = (values.maxOrNull() ?: 1L).coerceAtLeast(1L)
     Canvas(modifier = modifier) {
         val gap = 2f
@@ -144,7 +150,7 @@ fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: C
         values.forEachIndexed { index, value ->
             val height = (value.toFloat() / max) * size.height
             drawRect(
-                color = barColor,
+                color = color,
                 topLeft = androidx.compose.ui.geometry.Offset(
                     x = index * (barWidth + gap),
                     y = size.height - height
@@ -158,7 +164,7 @@ fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: C
 @Composable
 fun DonutChart(slices: List<Pair<String, Long>>, modifier: Modifier = Modifier) {
     val total = slices.sumOf { it.second }.coerceAtLeast(1L)
-    val palette = chartPalette
+    val palette = chartPalette()
     Canvas(modifier = modifier) {
         var startAngle = -90f
         slices.forEachIndexed { index, (_, value) ->
