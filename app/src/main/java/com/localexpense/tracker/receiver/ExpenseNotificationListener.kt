@@ -45,16 +45,16 @@ class ExpenseNotificationListener : NotificationListenerService() {
         val sender = title.ifBlank { packageName } // use title as sender, fallback to package
 
         val timestamp = sbn.postTime
-        
-        // Parse the notification
-        val expense = SmsParser.parseSms(sender, fullBody, timestamp)
-        
-        if (expense != null) {
-            // نفس منطق منع التكرار المستخدم في SmsReceiver - مهم جدًا هنا
-            // لأن نفس العملية البنكية غالبًا بتوصل كإشعار SMS وكإشعار تطبيق
-            // البنك مع بعض، فمن غيره كانت هتتسجل مرتين.
-            CoroutineScope(Dispatchers.IO).launch {
-                val db = AppDatabase.getDatabase(applicationContext)
+
+        // نفس منطق منع التكرار المستخدم في SmsReceiver - مهم جدًا هنا
+        // لأن نفس العملية البنكية غالبًا بتوصل كإشعار SMS وكإشعار تطبيق
+        // البنك مع بعض، فمن غيره كانت هتتسجل مرتين.
+        CoroutineScope(Dispatchers.IO).launch {
+            val db = AppDatabase.getDatabase(applicationContext)
+            val customRules = db.smsRuleDao().getEnabledRules()
+
+            val expense = SmsParser.parseSms(sender, fullBody, timestamp, customRules)
+            if (expense != null) {
                 val dao = db.expenseDao()
 
                 if (dao.insertIfNotDuplicate(expense)) {

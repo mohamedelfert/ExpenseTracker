@@ -47,6 +47,7 @@ object SmsImporter {
 
         val db = AppDatabase.getDatabase(context)
         val dao = db.expenseDao()
+        val customRules = db.smsRuleDao().getEnabledRules()
 
         cursor?.use { c ->
             val addressIndex = c.getColumnIndex(Telephony.Sms.ADDRESS)
@@ -59,7 +60,7 @@ object SmsImporter {
                 val body = c.getString(bodyIndex) ?: ""
                 val timestamp = c.getLong(dateIndex)
 
-                val expense = SmsParser.parseSms(sender, body, timestamp)
+                val expense = SmsParser.parseSms(sender, body, timestamp, customRules)
                 if (expense != null) {
                     if (dao.insertIfNotDuplicate(expense)) {
                         newAdded++

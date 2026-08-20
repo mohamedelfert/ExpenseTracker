@@ -57,7 +57,8 @@ fun AppNavHost(
         composable(Routes.TEST_SMS) {
             TestSmsScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onOpenRules = { navController.navigate(Routes.RULES) }
             )
         }
 

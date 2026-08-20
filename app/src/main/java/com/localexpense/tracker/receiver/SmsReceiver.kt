@@ -28,9 +28,11 @@ class SmsReceiver : BroadcastReceiver() {
                     val body = messages.joinToString("") { it.messageBody ?: "" }
                     val timestamp = messages[0].timestampMillis
 
-                    val expense = SmsParser.parseSms(sender, body, timestamp)
+                    val db = AppDatabase.getDatabase(context)
+                    val customRules = db.smsRuleDao().getEnabledRules()
+
+                    val expense = SmsParser.parseSms(sender, body, timestamp, customRules)
                     if (expense != null) {
-                        val db = AppDatabase.getDatabase(context)
                         val dao = db.expenseDao()
 
                         if (dao.insertIfNotDuplicate(expense)) {

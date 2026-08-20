@@ -1,10 +1,25 @@
 package com.localexpense.tracker.parser
 
 import com.localexpense.tracker.data.Expense
+import com.localexpense.tracker.data.SmsRule
 
 object SmsParser {
 
-    fun parseSms(sender: String, body: String, timestamp: Long): Expense? {
+    /**
+     * [customRules] هي القواعد اللي المستخدم ضافها بنفسه من شاشة "قواعد
+     * الرسائل" (مخزّنة في جدول sms_rules). بتتفحص الأول وبالترتيب، ولو
+     * قاعدة منها مطابقة (المرسل + كلمة الخصم + استخراج مبلغ ناجح) بتاخد
+     * الأولوية على المنطق الثابت تحت. ده بيسمح للمستخدم إنه يضيف/يظبط بنك
+     * جديد أو صيغة رسالة معينة من غير ما يحتاج يعدّل الكود.
+     */
+    fun parseSms(
+        sender: String,
+        body: String,
+        timestamp: Long,
+        customRules: List<SmsRule> = emptyList()
+    ): Expense? {
+        parseWithCustomRules(sender, body, timestamp, customRules)?.let { return it }
+
         // 1. التحقق من أن الرسالة تتضمن عملية خصم أو سحب أو شراء أو تحويل صادرة
         val isDebit = body.contains("خصم", true) ||
                 body.contains("شراء", true) ||
@@ -39,6 +54,56 @@ object SmsParser {
             rawBody = body,
             categoryName = categoryName
         )
+    }
+
+    private fun parseWithCustomRules(
+        sender: String,
+        body: String,
+        timestamp: Long,
+        rules: List<SmsRule>
+    ): Expense? {
+        for (rule in rules) {
+            if (!rule.isEnabled) continue
+
+            try {
+                if (rule.senderPattern.isNotBlank()) {
+                    val senderRegex = Regex(rule.senderPattern, RegexOption.IGNORE_CASE)
+                    // بعض البنوك بتبعت اسم مختلف في المرسل عن اللي المستخدم شافه فعلًا،
+                    // فبنقبل التطابق سواء في عنوان المرسل أو في نص الرسالة نفسه.
+                    if (!senderRegex.containsMatchIn(sender) && !senderRegex.containsMatchIn(body)) continue
+                }
+
+                if (rule.debitKeywordPattern.isNotBlank()) {
+                    val keywordRegex = Regex(rule.debitKeywordPattern, RegexOption.IGNORE_CASE)
+                    if (!keywordRegex.containsMatchIn(body)) continue
+                }
+
+                val amountRegex = Regex(rule.amountPattern, RegexOption.IGNORE_CASE)
+                val amount = amountRegex.find(body)
+                    ?.groupValues?.getOrNull(1)
+                    ?.replace(",", "")
+                    ?.toDoubleOrNull() ?: continue
+
+                val merchant = if (rule.merchantPattern.isNotBlank()) {
+                    Regex(rule.merchantPattern, RegexOption.IGNORE_CASE)
+                        .find(body)?.groupValues?.getOrNull(1)?.trim()
+                        ?.takeIf { it.isNotBlank() }
+                } else null
+
+                return Expense(
+                    amount = amount,
+                    merchant = merchant ?: extractMerchant(body),
+                    bankName = rule.bankName,
+                    timestamp = timestamp,
+                    rawBody = body,
+                    categoryName = detectCategory(body, merchant ?: "")
+                )
+            } catch (e: Exception) {
+                // Regex غلط في القاعدة دي - تجاهلها وكمّل بالقواعد اللي بعدها
+                continue
+            }
+        }
+        return null
     }
 
     private fun extractMerchant(body: String): String {

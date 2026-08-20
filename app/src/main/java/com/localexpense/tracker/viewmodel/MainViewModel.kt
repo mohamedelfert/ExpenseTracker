@@ -265,7 +265,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun testSmsMessage(sender: String, body: String): SmsTestResult {
-        val result = SmsParser.parseSms(sender, body, System.currentTimeMillis())
+        val result = SmsParser.parseSms(sender, body, System.currentTimeMillis(), rules.value)
             ?: return SmsTestResult(matched = false)
         return SmsTestResult(
             matched = true,

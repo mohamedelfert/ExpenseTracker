@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Rule
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,16 +31,16 @@ import com.localexpense.tracker.viewmodel.MainViewModel
 import com.localexpense.tracker.viewmodel.SmsTestResult
 
 /**
- * The parser (SmsParser.kt) recognises common Egyptian bank / InstaPay wording out of
- * the box, with no per-bank configuration needed. Use this screen to paste a real message
- * you actually received and confirm the amount / merchant / bank / category come out right —
- * the text never leaves the phone.
+ * التطبيق بيتعرف تلقائيًا على أشهر صيغ رسائل البنوك المصرية وInstaPay، وأي
+ * قاعدة مخصصة (من شاشة "قواعد الرسائل") بتتفحص الأول وبتاخد الأولوية.
+ * الصفحة دي عشان تتأكد إن رسالة بنكك بتتقرا صح — النص بيفضل على موبايلك بس.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TestSmsScreen(
     viewModel: MainViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenRules: () -> Unit
 ) {
     var sender by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
@@ -52,6 +54,11 @@ fun TestSmsScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
                     }
+                },
+                actions = {
+                    IconButton(onClick = onOpenRules) {
+                        Icon(Icons.Filled.Rule, contentDescription = "قواعد مخصصة")
+                    }
                 }
             )
         }
@@ -61,10 +68,19 @@ fun TestSmsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "التطبيق بيتعرف تلقائيًا على أشهر صيغ رسائل البنوك المصرية وInstaPay من غير ما تحتاج تظبط حاجة. " +
-                    "الصفحة دي بس عشان تتأكد إن رسالة بنكك بتتقرا صح — النص بيفضل على موبايلك بس.",
+                "التطبيق بيتعرف تلقائيًا على أشهر صيغ رسائل البنوك المصرية وInstaPay. " +
+                    "لو عندك بنك أو صيغة رسالة مش متعرف عليها صح، تقدر تضيف قاعدة مخصصة بنفسك " +
+                    "من الأيقونة اللي فوق. الصفحة دي عشان تتأكد إن الرسالة بتتقرا صح — النص بيفضل على موبايلك بس.",
                 style = MaterialTheme.typography.bodyMedium
             )
+
+            OutlinedButton(
+                onClick = onOpenRules,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.Rule, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Text("إدارة القواعد المخصصة")
+            }
 
             OutlinedTextField(
                 value = sender, onValueChange = { sender = it },
@@ -76,7 +92,7 @@ fun TestSmsScreen(
                 minLines = 4
             )
 
-            OutlinedButton(
+            Button(
                 onClick = { result = viewModel.testSmsMessage(sender, body) },
                 modifier = Modifier.fillMaxWidth()
             ) { Text("اختبار") }
@@ -96,9 +112,12 @@ fun TestSmsScreen(
                             Text("الفئة المقترحة: ${r.categoryName}")
                         } else {
                             Text(
-                                "لو الرسالة دي فعلًا عملية خصم ومش متعرف عليها، ابعتلي نص الرسالة (بأرقام وهمية) في المحادثة وأزوّد التعرف عليها.",
+                                "لو الرسالة دي فعلًا عملية خصم، دوس \"إدارة القواعد المخصصة\" فوق وضيف قاعدة جديدة لها.",
                                 style = MaterialTheme.typography.labelSmall
                             )
+                            OutlinedButton(onClick = onOpenRules, modifier = Modifier.fillMaxWidth()) {
+                                Text("إضافة قاعدة لهذه الرسالة")
+                            }
                         }
                     }
                 }
