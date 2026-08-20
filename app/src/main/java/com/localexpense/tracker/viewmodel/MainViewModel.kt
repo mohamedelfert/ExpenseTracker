@@ -15,8 +15,6 @@ import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.ExpenseRepository
 import com.localexpense.tracker.data.Merchant
 import com.localexpense.tracker.data.MerchantRule
-import com.localexpense.tracker.data.PeriodBankTotal
-import com.localexpense.tracker.data.PeriodTotal
 import com.localexpense.tracker.data.RecurringExpense
 import com.localexpense.tracker.data.SourceTotal
 import com.localexpense.tracker.data.TransactionFilter
@@ -119,18 +117,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val bankNames: StateFlow<List<String>> = repository.observeBankNames()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // شجرة الشاشة الرئيسية (سنة -> شهر -> بنك) بتتبني من تجميعات SQL: صفوف
-    // قليلة بدل ما نحمّل كل الحركات ونجمعها في الـ Compose.
-    val monthTotals: StateFlow<List<PeriodTotal>> = repository.observeMonthTotals()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val monthBankTotals: StateFlow<List<PeriodBankTotal>> = repository.observeMonthBankTotals()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    /** حركات مجموعة واحدة (شهر + بنك) — بتتحمّل بس لما المستخدم يفتحها. */
-    fun observeGroupTransactions(month: String, bankName: String): Flow<List<Expense>> =
-        repository.observeMonthBankTransactions(month, bankName)
-
     private val _importState = MutableStateFlow<ImportState>(ImportState.Idle)
     val importState: StateFlow<ImportState> = _importState.asStateFlow()
 
@@ -195,6 +181,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val inserted = withContext(Dispatchers.IO) { repository.processDueRecurring() }
             for (expense in inserted) {
                 checkBudgetAlerts(expense.categoryName, expense.timestamp)
+            }
+            notifyUpcomingPayments()
+        }
+    }
+
+    /**
+     * تنبيه بالدفعات القادمة اللي داخل مدة التنبيه. بيشتغل وقت فتح التطبيق —
+     * ponytail: مفيش WorkManager، راجع NotificationHelper.showUpcomingPaymentNotification.
+     */
+    private fun notifyUpcomingPayments() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            val dayMillis = 24L * 60 * 60 * 1000
+            repository.upcomingPayments(withinDays = 7, now = now).forEach { payment ->
+                val daysUntil = ((payment.dueDate - now) / dayMillis).toInt()
+                if (daysUntil in 0..3) {
+                    com.localexpense.tracker.notification.NotificationHelper.showUpcomingPaymentNotification(
+                        getApplication(), payment.name, payment.amountMinor, daysUntil
+                    )
+                }
             }
             scheduleReminders()
         }

@@ -4,7 +4,6 @@ import com.localexpense.tracker.data.Expense
 import com.localexpense.tracker.data.SmsRule
 import com.localexpense.tracker.data.TransactionSource
 import com.localexpense.tracker.data.TransactionType
-import com.localexpense.tracker.sources.TransactionSources
 import com.localexpense.tracker.util.parseAmountMinor
 import com.localexpense.tracker.util.rawMessageHash
 
@@ -29,20 +28,13 @@ object SmsParser {
     ): Expense? {
         parseWithCustomRules(sender, body, timestamp, customRules, source)?.let { return it }
 
-        // 1. نوع العملية: خصم (مصروف)، إيداع (دخل)، أو استرداد. لو نص الرسالة
-        // مش حاسم، بناخد النوع الافتراضي للمصدر لو معرّف (المحافظ غالبًا تحويلات).
-        val type = detectType(body)
-            ?: TransactionSources.resolve(sender, body)?.defaultType
-            ?: return null
+        // 1. نوع العملية: خصم (مصروف)، إيداع (دخل)، أو استرداد.
+        val type = detectType(body) ?: return null
 
-        // 2. المصدر المعروف (لو موجود) بيقدّم أنماطه الخاصة قبل الأنماط العامة
-        val spec = TransactionSources.resolve(sender, body)
-
-        // 3. استخراج المبلغ (دعم العملة المصرية EGP, LE, ج.م)
-        val amountMinor = spec?.amountPattern
-            ?.let { pattern -> firstGroup(pattern, body)?.let(::parseAmountMinor) }
-            ?: extractAmountMinor(body)
-            ?: return null
+        // 2. استخراج المبلغ (دعم العملة المصرية EGP, LE, ج.م)
+        val amountRegex = Regex("""(?:مبلغ|EGP|LE|LE\.|ج\.م|جم)\s*[:\-]?\s*([\d,]+(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
+        val amountMatch = amountRegex.find(body) ?: Regex("""([\d,]+(?:\.\d{1,2})?)\s*(?:EGP|LE|ج\.م|جم)""", RegexOption.IGNORE_CASE).find(body)
+        val amountMinor = amountMatch?.groupValues?.getOrNull(1)?.let { parseAmountMinor(it) } ?: return null
 
         // 4. استخراج اسم الجهة (Merchant)
         val merchant = spec?.merchantPattern
@@ -67,6 +59,42 @@ object SmsParser {
             referenceId = extractReference(body),
             rawHash = rawMessageHash(sender, body)
         )
+    }
+
+    /**
+     * نوع العملية من نص الرسالة (المرحلة 6): الاسترداد بيتفحص الأول لأن رسالة
+     * الاسترداد غالبًا فيها كلمة "إيداع" كمان، والإيداع/التحويل الوارد = دخل.
+     * null = الرسالة دي مش عملية مالية أصلاً (إعلان، OTP، رصيد...).
+     */
+    internal fun detectType(body: String): TransactionType? {
+        val refundWords = listOf("استرداد", "رد مبلغ", "ارتجاع", "refund", "reversal", "reversed")
+        val creditWords = listOf("إيداع", "ايداع", "اضيف", "أضيف", "راتب", "مرتب", "credited", "deposit", "salary")
+        val debitWords = listOf(
+            "خصم", "شراء", "سحب", "تحويل", "دفع",
+            "debited", "purchase", "paid", "deducted", "withdrawal"
+        )
+
+        return when {
+            refundWords.any { body.contains(it, true) } -> TransactionType.REFUND
+            creditWords.any { body.contains(it, true) } -> TransactionType.INCOME
+            debitWords.any { body.contains(it, true) } -> TransactionType.EXPENSE
+            else -> null
+        }
+    }
+
+    /**
+     * رقم مرجع العملية لو البنك بعته. ده أدق مفتاح لمنع التكرار (المرحلة 17)،
+     * لأن نفس العملية بيوصل ليها نفس المرجع من كل المسارات.
+     */
+    internal fun extractReference(body: String): String {
+        val patterns = listOf(
+            Regex("""(?:مرجع|المرجع|رقم العملية|رقم المرجع)\s*[:#\-]?\s*([A-Za-z0-9]{4,24})"""),
+            Regex("""(?:ref|reference|txn|trx|transaction)\s*(?:no|id|#)?\s*[:#\-]?\s*([A-Za-z0-9]{4,24})""", RegexOption.IGNORE_CASE)
+        )
+        for (pattern in patterns) {
+            pattern.find(body)?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return ""
     }
 
     /**

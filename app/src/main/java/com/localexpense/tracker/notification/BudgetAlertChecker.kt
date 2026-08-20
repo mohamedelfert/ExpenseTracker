@@ -62,47 +62,31 @@ object BudgetAlertChecker {
         timestamp: Long
     ) {
         val progress = budgetProgress(spentMinor, limitMinor)
-        val projection = forecast(
+        val daysRemaining = forecast(
             netSpentMinor = spentMinor,
             daysElapsed = dayOfMonth(timestamp),
             daysInMonth = daysInMonth(timestamp),
             budgetLimitMinor = limitMinor
-        )
-        val projectedOver = projection.projectedOverBudgetMinor ?: 0L
+        ).daysRemaining
 
-        // ثلاث مستويات: تخطّي فعلي، قرب من الحد، أو **توقّع** تخطّي بمعدل
-        // الصرف الحالي (المرحلة 7، بند 24: تنبيه مبني على التوقّع). التنبيه
-        // الاستباقي بيظهر بس لو لسه فيه أيام في الشهر ينفع تتصرف فيها.
-        val level = when {
-            progress.state == BudgetState.EXCEEDED -> "exceeded"
-            progress.state == BudgetState.WARNING -> "warning"
-            projectedOver > 0L && projection.daysRemaining >= 3 -> "forecast"
-            else -> return
+        val level = when (progress.state) {
+            BudgetState.EXCEEDED -> "exceeded"
+            BudgetState.WARNING -> "warning"
+            BudgetState.SAFE -> return
         }
 
         val prefKey = "${level}_${label}_$monthKey"
         if (prefs.getBoolean(prefKey, false)) return
 
-        if (level == "forecast") {
-            NotificationHelper.showForecastAlertNotification(
-                context = context,
-                label = label,
-                projectedMinor = projection.projectedMinor,
-                limitMinor = limitMinor,
-                overMinor = projectedOver,
-                daysRemaining = projection.daysRemaining
-            )
-        } else {
-            NotificationHelper.showBudgetAlertNotification(
-                context = context,
-                label = label,
-                spentMinor = spentMinor,
-                limitMinor = limitMinor,
-                exceeded = progress.state == BudgetState.EXCEEDED,
-                percentUsed = progress.percentUsed,
-                daysRemaining = projection.daysRemaining
-            )
-        }
+        NotificationHelper.showBudgetAlertNotification(
+            context = context,
+            label = label,
+            spentMinor = spentMinor,
+            limitMinor = limitMinor,
+            exceeded = progress.state == BudgetState.EXCEEDED,
+            percentUsed = progress.percentUsed,
+            daysRemaining = daysRemaining
+        )
         prefs.edit().putBoolean(prefKey, true).apply()
     }
 }

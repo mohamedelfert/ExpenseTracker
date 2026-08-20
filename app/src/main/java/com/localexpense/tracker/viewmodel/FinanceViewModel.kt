@@ -61,11 +61,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         repository.observeDailyTotalsBetween(range.start, range.end)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** الدخل اليومي — التقويم بيعرضه جنب الصرف (المرحلة 15). */
-    val dailyIncome: StateFlow<List<DayTotal>> = monthRange().let { range ->
-        repository.observeDailyIncomeBetween(range.start, range.end)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     init {
         refresh()
     }

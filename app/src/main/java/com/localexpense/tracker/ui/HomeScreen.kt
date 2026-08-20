@@ -2,7 +2,6 @@ package com.localexpense.tracker.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -22,8 +21,11 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.*
@@ -38,11 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.BuildConfig
 import com.localexpense.tracker.data.Expense
-import com.localexpense.tracker.data.PeriodBankTotal
-import com.localexpense.tracker.data.PeriodTotal
-import com.localexpense.tracker.data.TransactionType
 import com.localexpense.tracker.money.formatMinor
-import com.localexpense.tracker.ui.theme.finance
 import com.localexpense.tracker.viewmodel.CleanupState
 import com.localexpense.tracker.viewmodel.ImportState
 import com.localexpense.tracker.viewmodel.MainViewModel
@@ -76,7 +74,6 @@ fun HomeScreen(
     onOpenCalendar: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenInstallments: () -> Unit = {},
-    onOpenAssistant: () -> Unit = {},
     onOpenTransaction: (Long) -> Unit = {}
 ) {
     val monthTotals by viewModel.monthTotals.collectAsStateWithLifecycle()
@@ -85,7 +82,6 @@ fun HomeScreen(
     val importState by viewModel.importState.collectAsStateWithLifecycle()
     val cleanupState by viewModel.cleanupState.collectAsStateWithLifecycle()
     val anomalyWarning by viewModel.anomalyWarning.collectAsStateWithLifecycle()
-    val archivedYears by viewModel.archivedYears.collectAsStateWithLifecycle()
 
     var showDisclosureDialog by remember { mutableStateOf(false) }
     var showCleanupConfirmDialog by remember { mutableStateOf(false) }
@@ -205,37 +201,9 @@ fun HomeScreen(
                 )
             }
 
-            // ===== اختصارات =====
-            item {
-                Row(
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    QuickAction(Icons.Default.BarChart, "التحليلات", onOpenDashboard)
-                    QuickAction(Icons.Default.CalendarMonth, "التقويم", onOpenCalendar)
-                    QuickAction(Icons.Default.DateRange, "الدوريات", onOpenRecurring)
-                    QuickAction(Icons.Default.CreditCard, "الأقساط", onOpenInstallments)
-                    QuickAction(Icons.Default.Tune, "قواعد الرسائل", onOpenTestSms)
-                }
-            }
-
-            // ===== أذونات =====
-            val needsPermissionsCard = !notificationAccessGranted ||
-                (BuildConfig.ENABLE_SMS_IMPORT && !smsPermissionGranted)
-            if (needsPermissionsCard) {
-                item {
-                    PermissionsCard(
-                        smsGranted = smsPermissionGranted,
-                        notifGranted = notificationAccessGranted,
-                        onRequestSmsPermission = { showDisclosureDialog = true },
-                        onRequestNotificationPermission = onRequestNotificationPermission,
-                        onOpenAppSettings = onOpenAppSettings,
-                        onOpenRestrictedHelp = { showRestrictedHelp = true }
-                    )
-                }
-            }
+    // إجمالي الشهر جاي من تجميع SQL (بيستثني التحويلات وبيخصم الاسترداد)،
+    // مش من جمع القائمة المعروضة في الذاكرة.
+    val currentMonthTotal by viewModel.monthTotal.collectAsStateWithLifecycle()
 
             // ===== تحذير حركة شاذة =====
             anomalyWarning?.let { warning ->
@@ -279,120 +247,13 @@ fun HomeScreen(
                 }
             }
 
-            importStatusMessage?.let { message ->
-                item {
-                    NoticeCard(
-                        text = message,
-                        container = if (importState is ImportState.Error) {
-                            MaterialTheme.colorScheme.errorContainer
-                        } else {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        },
-                        content = if (importState is ImportState.Error) {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        }
-                    )
-                }
-            }
-            cleanupStatusMessage?.let { message ->
-                item {
-                    NoticeCard(
-                        text = message,
-                        container = MaterialTheme.colorScheme.surfaceContainer,
-                        content = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
-            // ===== سجل الحركات =====
-            item {
-                SectionHeader(
-                    title = "سجل الحركات",
-                    action = "تنظيف المكرر",
-                    onAction = { showCleanupConfirmDialog = true }
-                )
-            }
-
-            if (years.isEmpty()) {
-                item {
-                    EmptyState(
-                        title = "لسه مفيش حركات",
-                        hint = "الحركات بتظهر هنا تلقائيًا أول ما نلقطها من رسائل أو إشعارات البنك، أو لما تضيف واحدة بنفسك."
-                    )
-                }
-            } else {
-                years.forEach { (year, monthsOfYear) ->
-                    val isYearExpanded = expandedYears[year] ?: true
-                    val isSelected = year in selectedYears
-                    val yearTotal = monthsOfYear.sumOf { it.total }
-
-                    item(key = "year-$year") {
-                        LedgerRow(
-                            title = "سنة $year",
-                            amountMinor = yearTotal,
-                            level = 0,
-                            isExpanded = isYearExpanded,
-                            isSelectionMode = isSelectionMode,
-                            isSelected = isSelected,
-                            onClick = {
-                                if (isSelectionMode) {
-                                    if (isSelected) selectedYears.remove(year) else selectedYears.add(year)
-                                } else {
-                                    expandedYears[year] = !isYearExpanded
-                                }
-                            },
-                            onLongClick = {
-                                if (!isSelectionMode && year !in selectedYears) selectedYears.add(year)
-                            }
-                        )
-                    }
-
-                    if (isYearExpanded && !isSelectionMode) {
-                        monthsOfYear.sortedByDescending { it.period }.forEach { month ->
-                            val isMonthExpanded = expandedMonths[month.period] ?: false
-                            item(key = "month-${month.period}") {
-                                LedgerRow(
-                                    title = monthName(month.period),
-                                    amountMinor = month.total,
-                                    level = 1,
-                                    isExpanded = isMonthExpanded,
-                                    onClick = { expandedMonths[month.period] = !isMonthExpanded }
-                                )
-                            }
-
-                            if (isMonthExpanded) {
-                                val banks = monthBankTotals.filter { it.period == month.period }
-                                banks.forEach { bank ->
-                                    val bankKey = "${bank.period}-${bank.bankName}"
-                                    val isBankExpanded = expandedBanks[bankKey] ?: false
-                                    item(key = "bank-$bankKey") {
-                                        LedgerRow(
-                                            title = bank.bankName,
-                                            amountMinor = bank.total,
-                                            level = 2,
-                                            isExpanded = isBankExpanded,
-                                            onClick = { expandedBanks[bankKey] = !isBankExpanded }
-                                        )
-                                    }
-                                    if (isBankExpanded) {
-                                        item(key = "tx-$bankKey") {
-                                            BankTransactions(
-                                                viewModel = viewModel,
-                                                month = bank.period,
-                                                bankName = bank.bankName,
-                                                onOpenTransaction = onOpenTransaction
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    // إجمالي كل سنة مؤرشفة، عشان تظهر في شاشة الأرشيف حتى وهي مخفية من القائمة الرئيسية
+    val archivedYearTotals = remember(expenses, archivedYears.toList()) {
+        expenses.groupBy { yearFormatter.format(Date(it.timestamp)) }
+            .filterKeys { year -> year in archivedYears }
+            .mapValues { (_, yearExpenses) -> yearExpenses.sumOf { it.amountMinor } }
+            .toList()
+            .sortedByDescending { it.first }
     }
 
     if (showCleanupConfirmDialog) {
@@ -454,45 +315,64 @@ fun HomeScreen(
     }
 }
 
-/** بطاقة الشهر الحالي: الرقم الأهم في الشاشة، بأكبر مقاس في السلّم. */
-@Composable
-private fun MonthSummaryCard(
-    spentMinor: Long,
-    onOpenDashboard: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onOpenDashboard),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        ),
-        shape = MaterialTheme.shapes.large
-    ) {
-        Column(Modifier.padding(20.dp)) {
-            Text("مصروفات الشهر الحالي", style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                formatMinor(spentMinor),
-                style = MaterialTheme.typography.displayMedium
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "اضغط لعرض التحليلات: التوقّع، المقارنة بالشهر اللي فات، والرؤى",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-}
-
-@Composable
-private fun QuickAction(icon: ImageVector, label: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.width(96.dp)
-    ) {
+    Scaffold(
+        topBar = {
+            if (isSelectionMode) {
+                TopAppBar(
+                    title = { Text("${selectedYears.size} محدد", fontWeight = FontWeight.Bold, color = Color.White) },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedYears.clear() }) {
+                            Icon(Icons.Default.Close, contentDescription = "إلغاء التحديد", tint = Color.White)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            viewModel.archiveYears(selectedYears.toSet())
+                            selectedYears.clear()
+                        }) {
+                            Icon(Icons.Default.Archive, contentDescription = "أرشفة", tint = Color(0xFF80CBC4))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF263238))
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("مصروفاتي", fontWeight = FontWeight.Bold, color = Color.White) },
+                    actions = {
+                        IconButton(onClick = { showArchiveDialog = true }) {
+                            Icon(Icons.Default.Unarchive, contentDescription = "الأرشيف", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenTransactions) {
+                            Icon(Icons.Default.Search, contentDescription = "بحث وفلاتر", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenCalendar) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = "التقويم", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenRecurring) {
+                            Icon(Icons.Default.DateRange, contentDescription = "الدوريات والاشتراكات", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenInstallments) {
+                            Icon(Icons.Default.CreditCard, contentDescription = "الأقساط", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenAddExpense) {
+                            Icon(Icons.Default.Add, contentDescription = "إضافة مصروف", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenDashboard) {
+                            Icon(Icons.Default.BarChart, contentDescription = "الإحصائيات", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Tune, contentDescription = "الإعدادات والخصوصية", tint = Color.White)
+                        }
+                        IconButton(onClick = onOpenTestSms) {
+                            Icon(Icons.Default.Settings, contentDescription = "اختبار رسالة SMS", tint = Color.White)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF1E1E1E))
+                )
+            }
+        },
+        containerColor = Color(0xFF121212)
+    ) { paddingValues ->
         Column(
             Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -530,29 +410,61 @@ private fun NoticeCard(
     }
 }
 
-/** صف في شجرة السجل. [level] بيحدد الإزاحة وحجم الخط (سنة/شهر/بنك). */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun LedgerRow(
-    title: String,
-    amountMinor: Long,
-    level: Int,
-    isExpanded: Boolean,
-    isSelectionMode: Boolean = false,
-    isSelected: Boolean = false,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit = {}
-) {
-    val container = when (level) {
-        0 -> MaterialTheme.colorScheme.surfaceContainerHigh
-        1 -> MaterialTheme.colorScheme.surfaceContainer
-        else -> MaterialTheme.colorScheme.surface
-    }
-    val textStyle = when (level) {
-        0 -> MaterialTheme.typography.titleMedium
-        1 -> MaterialTheme.typography.titleSmall
-        else -> MaterialTheme.typography.bodyMedium
-    }
+            // تحذير حركة شاذة (المرحلة 11): بيظهر بعد تسجيل عملية أعلى بكتير
+            // من متوسط فئتها، وبيتقفل بضغطة عشان ميقعدش في وش المستخدم.
+            anomalyWarning?.let { warning ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF3E2723))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = warning,
+                            color = Color(0xFFFFCC80),
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { viewModel.dismissAnomalyWarning() }) {
+                            Text("تمام", color = Color(0xFFFFB74D), fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            // زرار "استيراد صندوق الوارد" بيحتاج READ_SMS، فمش متاح إلا في نسخة
+            // "direct". نسخة "play" بتلتقط المصروفات تلقائيًا من الإشعارات فور
+            // وصولها من غير أي زرار مزامنة يدوي.
+            if (BuildConfig.ENABLE_SMS_IMPORT) {
+                Button(
+                    onClick = {
+                        if (smsPermissionGranted) showImportRangeDialog = true else showDisclosureDialog = true
+                    },
+                    enabled = !isImporting,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    if (isImporting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("جاري الاستيراد...", color = Color.White)
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = null, tint = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("مزامنة واستيراد الرسائل", color = Color.White)
+                    }
+                }
+            }
 
     Card(
         modifier = Modifier
@@ -652,21 +564,113 @@ private fun TransactionRow(expense: Expense, timeLabel: String, onClick: () -> U
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
-                if (!expense.isVerified && expense.source != com.localexpense.tracker.data.TransactionSource.MANUAL) {
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.finance.warning)
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("إجمالي مصروفات الشهر الحالي", color = Color.Gray, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = formatMinor(currentMonthTotal),
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF80CBC4)
+                        )
                     )
                 }
             }
-            Text(
-                timeLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
+            if (groupedData.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("لا توجد مصروفات مسجلة بعد", color = Color.Gray)
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    groupedData.forEach { (year, monthsMap) ->
+                        val isYearExpanded = expandedYears[year] ?: true
+                        val isSelected = year in selectedYears
+
+                        item(key = "year-$year") {
+                            val yearTotal = remember(monthsMap) {
+                                monthsMap.values.flatMap { it.values.flatten() }.sumOf { it.amountMinor }
+                            }
+
+                            HeaderCard(
+                                title = "سنة $year",
+                                amount = yearTotal,
+                                isExpanded = isYearExpanded,
+                                isSelectionMode = isSelectionMode,
+                                isSelected = isSelected,
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        if (isSelected) selectedYears.remove(year) else selectedYears.add(year)
+                                    } else {
+                                        expandedYears[year] = !isYearExpanded
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) {
+                                        if (year !in selectedYears) selectedYears.add(year)
+                                    }
+                                },
+                                containerColor = if (isSelected) Color(0xFF1B4D3E) else Color(0xFF0F2027),
+                                titleColor = Color.White,
+                                amountColor = Color(0xFF4DB6AC)
+                            )
+                        }
+
+                        if (isYearExpanded && !isSelectionMode) {
+                            monthsMap.forEach { (monthName, banksMap) ->
+                                val monthKey = "$year-$monthName"
+                                val isMonthExpanded = expandedMonths[monthKey] ?: true
+
+                                item(key = "month-$monthKey") {
+                                    val monthTotal = remember(banksMap) {
+                                        banksMap.values.flatten().sumOf { it.amountMinor }
+                                    }
+                                    HeaderCard(
+                                        title = monthName,
+                                        amount = monthTotal,
+                                        isExpanded = isMonthExpanded,
+                                        isSelectionMode = false,
+                                        isSelected = false,
+                                        onClick = { expandedMonths[monthKey] = !isMonthExpanded },
+                                        onLongClick = {},
+                                        containerColor = Color(0xFF1F2937),
+                                        titleColor = Color.White,
+                                        amountColor = Color(0xFF80CBC4),
+                                        paddingStart = 12.dp
+                                    )
+                                }
+
+                                if (isMonthExpanded) {
+                                    banksMap.forEach { (bankName, bankExpenses) ->
+                                        item(key = "bank-$monthKey-$bankName") {
+                                            BankExpensesCard(
+                                                bankName = bankName,
+                                                expenses = bankExpenses,
+                                                timeFormatter = timeFormatter,
+                                                onOpenTransaction = onOpenTransaction
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         Text(
             (if (isCredit) "+" else if (expense.type == TransactionType.TRANSFER) "" else "-") +
@@ -755,8 +759,8 @@ private fun ArchiveDialog(
                                 Text("سنة $year", style = MaterialTheme.typography.bodyMedium)
                                 Text(
                                     formatMinor(total),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color(0xFF80CBC4),
+                                    fontSize = 12.sp
                                 )
                             }
                             TextButton(onClick = { onUnarchive(year) }) { Text("إظهار") }
@@ -868,4 +872,170 @@ private fun ImportRangeDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
     )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HeaderCard(
+    title: String,
+    amount: Long,
+    isExpanded: Boolean,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    containerColor: Color,
+    titleColor: Color,
+    amountColor: Color,
+    paddingStart: androidx.compose.ui.unit.Dp = 0.dp
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = paddingStart)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onClick() },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Color(0xFF00897B),
+                            uncheckedColor = Color.Gray
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                } else {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = amountColor
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = titleColor
+                    )
+                )
+            }
+            Text(
+                text = formatMinor(amount),
+                fontWeight = FontWeight.Bold,
+                color = amountColor,
+                fontSize = 14.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun BankExpensesCard(
+    bankName: String,
+    expenses: List<Expense>,
+    timeFormatter: SimpleDateFormat,
+    onOpenTransaction: (Long) -> Unit = {}
+) {
+    val bankTotal = remember(expenses) { expenses.sumOf { it.amountMinor } }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF262626)),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = bankName,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = formatMinor(bankTotal),
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFB0BEC5),
+                    fontSize = 13.sp
+                )
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                color = Color(0xFF333333)
+            )
+
+            expenses.forEach { expense ->
+                val formattedTime = timeFormatter.format(Date(expense.timestamp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenTransaction(expense.id) }
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = expense.merchant,
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                color = Color(0xFF37474F),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = expense.categoryName,
+                                    color = Color(0xFFECEFF1),
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = formattedTime,
+                            color = Color.Gray,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    val isCredit = expense.type == com.localexpense.tracker.data.TransactionType.INCOME ||
+                        expense.type == com.localexpense.tracker.data.TransactionType.REFUND
+                    Text(
+                        text = (if (isCredit) "+" else "-") + formatMinor(expense.amountMinor),
+                        color = if (isCredit) Color(0xFF81C784) else Color(0xFFFF8A80),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+    }
 }

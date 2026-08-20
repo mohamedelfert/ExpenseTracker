@@ -53,23 +53,22 @@ class ExpenseNotificationListener : NotificationListenerService() {
                 val db = AppDatabase.getDatabase(applicationContext)
                 val customRules = db.smsRuleDao().getEnabledRules()
 
-                val expense = SmsParser.parseSms(
-                    sender, fullBody, timestamp, customRules,
-                    source = com.localexpense.tracker.data.TransactionSource.NOTIFICATION
-                )
-                if (expense != null) {
-                    val dao = db.expenseDao()
+            val expense = SmsParser.parseSms(
+                sender, fullBody, timestamp, customRules,
+                source = com.localexpense.tracker.data.TransactionSource.NOTIFICATION
+            )
+            if (expense != null) {
+                val dao = db.expenseDao()
 
-                    // نفس نقطة الدخول المستخدمة في SmsReceiver و SmsImporter.
-                    val saved = ExpenseRepository(applicationContext).captureTransaction(expense)
-                    if (saved != null) {
-                        NotificationHelper.showExpenseCapturedNotification(
-                            applicationContext, saved.amountMinor, saved.merchant, saved.bankName
-                        )
-                        BudgetAlertChecker.checkAndNotify(
-                            applicationContext, dao, db.budgetDao(), saved.categoryName, saved.timestamp
-                        )
-                    }
+                // نفس نقطة الدخول المستخدمة في SmsReceiver و SmsImporter.
+                val saved = ExpenseRepository(applicationContext).captureTransaction(expense)
+                if (saved != null) {
+                    NotificationHelper.showExpenseCapturedNotification(
+                        applicationContext, saved.amountMinor, saved.merchant, saved.bankName
+                    )
+                    BudgetAlertChecker.checkAndNotify(
+                        applicationContext, dao, db.budgetDao(), saved.categoryName, saved.timestamp
+                    )
                 }
             } catch (e: Exception) {
                 // إشعار واحد فشل مش سبب يقفل التطبيق.

@@ -27,7 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.money.formatMinor
-import com.localexpense.tracker.ui.theme.finance
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 
 /**
@@ -72,7 +71,7 @@ fun CompareMonthsScreen(finance: FinanceViewModel, onBack: () -> Unit) {
                         Text(
                             if (change >= 0) "↑ زيادة ${change.toInt()}%" else "↓ نقصان ${-change.toInt()}%",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (change >= 0) MaterialTheme.finance.expense else MaterialTheme.finance.income
+                            color = if (change >= 0) Color(0xFFE53935) else Color(0xFF43A047)
                         )
                     }
                 }
@@ -121,8 +120,8 @@ fun CompareMonthsScreen(finance: FinanceViewModel, onBack: () -> Unit) {
                             label,
                             style = MaterialTheme.typography.labelMedium,
                             color = when {
-                                change.deltaMinor > 0 -> MaterialTheme.finance.expense
-                                change.deltaMinor < 0 -> MaterialTheme.finance.income
+                                change.deltaMinor > 0 -> Color(0xFFE53935)
+                                change.deltaMinor < 0 -> Color(0xFF43A047)
                                 else -> MaterialTheme.colorScheme.onSurfaceVariant
                             }
                         )

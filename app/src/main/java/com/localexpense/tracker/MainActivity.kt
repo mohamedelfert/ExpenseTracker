@@ -8,8 +8,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.service.notification.NotificationListenerService
-import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
@@ -21,10 +19,8 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.localexpense.tracker.security.AppLock
-import com.localexpense.tracker.receiver.ExpenseNotificationListener
 import com.localexpense.tracker.ui.AppNavHost
 import com.localexpense.tracker.ui.LockScreen
-import com.localexpense.tracker.ui.RestrictedSettingsDialog
 import com.localexpense.tracker.ui.theme.ExpenseTrackerTheme
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 import com.localexpense.tracker.viewmodel.MainViewModel
@@ -50,9 +46,6 @@ private val SMS_PERMISSIONS = arrayOf(
  * FragmentActivity — راجع security/BiometricAuth.kt. FragmentActivity وارثة من
  * ComponentActivity فكل حاجة في Compose بتفضل شغالة زي ما هي.
  */
-private const val PREFS_UI = "ui_state"
-private const val KEY_RESTRICTED_EXPLAINED = "restricted_settings_explained"
-
 class MainActivity : FragmentActivity() {
 
     private var smsPermissionGranted = mutableStateOf(false)
@@ -61,13 +54,6 @@ class MainActivity : FragmentActivity() {
     /** القفل (المرحلة 16): مقفول من البداية لو المستخدم مفعّل رقم سري. */
     private var locked = mutableStateOf(false)
     private var backgroundedAt = 0L
-
-    /** بيتفتح لوحده لو رجع المستخدم من الإعدادات والإذن لسه محجوب. */
-    private var showRestrictedHelp = mutableStateOf(false)
-
-    /** نفس الشرح بس **قبل** ما نودّيه للإعدادات (لما التقييد متوقّع). */
-    private var showRestrictedHelpBefore = mutableStateOf(false)
-    private var expectNotificationRestriction = false
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -224,6 +210,11 @@ class MainActivity : FragmentActivity() {
         backgroundedAt = System.currentTimeMillis()
     }
 
+    override fun onStop() {
+        super.onStop()
+        backgroundedAt = System.currentTimeMillis()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -249,29 +240,7 @@ class MainActivity : FragmentActivity() {
                     if (AppLock.shouldLock(this@MainActivity, backgroundedAt)) {
                         locked.value = true
                     }
-                    // رجع من إعدادات الإشعارات والإذن لسه مش مفعّل على أندرويد
-                    // 13+ = الإعدادات المقيّدة هي السبب الأرجح.
-                    if (expectNotificationRestriction && !hasNotificationAccess()) {
-                        expectNotificationRestriction = false
-                        showRestrictedHelp.value = true
-                    }
                     onPauseOrDispose { }
-                }
-
-                if (showRestrictedHelpBefore.value) {
-                    RestrictedSettingsDialog(
-                        onOpenAppInfo = { openAppSettings() },
-                        onContinue = { openNotificationSettings() },
-                        proactive = true,
-                        onDismiss = { showRestrictedHelpBefore.value = false }
-                    )
-                }
-
-                if (showRestrictedHelp.value) {
-                    RestrictedSettingsDialog(
-                        onOpenAppInfo = { openAppSettings() },
-                        onDismiss = { showRestrictedHelp.value = false }
-                    )
                 }
 
                 if (isLocked) {
@@ -284,10 +253,14 @@ class MainActivity : FragmentActivity() {
                         plans = plans,
                         smsPermissionGranted = smsGranted,
                         notificationAccessGranted = notifGranted,
-                        // في نسخة "play" الأذونات دي مش معلنة أصلاً في الـ Manifest،
-                        // فالدالة بترجع من غير ما تعمل حاجة.
-                        onRequestSmsPermission = { requestSmsPermissions() },
-                        onRequestNotificationPermission = { onNotificationAccessRequested() },
+                        onRequestSmsPermission = {
+                            // في نسخة "play" الأذونات دي مش معلنة أصلاً في الـ Manifest،
+                            // فمحاولة طلبها هتترفض من النظام تلقائيًا - نتجاهلها بأمان.
+                            if (BuildConfig.ENABLE_SMS_IMPORT) {
+                                permissionLauncher.launch(SMS_PERMISSIONS)
+                            }
+                        },
+                        onRequestNotificationPermission = { openNotificationSettings() },
                         onOpenAppSettings = { openAppSettings() }
                     )
                 }

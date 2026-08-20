@@ -105,40 +105,11 @@ object NotificationHelper {
     }
 
     /**
-     * تنبيه استباقي: بمعدل الصرف الحالي، الميزانية دي هتتخطى قبل نهاية الشهر
-     * (المرحلة 7، بند 24). الرقم المعروض حساب بسيط: المتوسط اليومي × أيام
-     * الشهر — مش تنبؤ ذكي، وينفع المستخدم يعمله بنفسه على ورقة.
-     */
-    fun showForecastAlertNotification(
-        context: Context,
-        label: String,
-        projectedMinor: Long,
-        limitMinor: Long,
-        overMinor: Long,
-        daysRemaining: Int
-    ) {
-        if (!hasNotificationPermission(context)) return
-        ensureChannels(context)
-
-        val notification = NotificationCompat.Builder(context, CHANNEL_BUDGET_ALERT)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("📈 متوقّع تتخطى \"$label\"")
-            .setContentText(
-                "بمعدل صرفك الحالي المتوقّع ${formatMinor(projectedMinor)} مقابل حد " +
-                    "${formatMinor(limitMinor)} — زيادة ${formatMinor(overMinor)} وفاضل $daysRemaining يوم"
-            )
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)
-            .build()
-
-        NotificationManagerCompat.from(context).notify("forecast_$label".hashCode(), notification)
-    }
-
-    /**
      * تنبيه بدفعة قادمة (اشتراك/دورية/قسط).
      *
-     * بيتنادى من الفحص اليومي في PaymentReminderReceiver (AlarmManager)، فبيوصل
-     * كمان والتطبيق مقفول.
+     * ponytail: بيتفحص وقت فتح التطبيق بس، مش بجدول خلفي — إضافة WorkManager
+     * لتنبيه بيوم واحد فرق مش مستاهلة. لو التنبيه لازم يوصل والتطبيق مقفول،
+     * الترقية هي WorkManager PeriodicWorkRequest يومي بينادي نفس الدالة دي.
      */
     fun showUpcomingPaymentNotification(
         context: Context,

@@ -121,57 +121,6 @@ interface ExpenseDao {
     )
     fun observeDailyTotalsBetween(startTime: Long, endTime: Long): Flow<List<DayTotal>>
 
-    /**
-     * إجماليات الشهور (كل الشهور اللي فيها حركات) — الشاشة الرئيسية بتبني منها
-     * شجرة السنة/الشهر من غير ما تحمّل أي حركة في الذاكرة.
-     */
-    @Query(
-        """
-        SELECT strftime('%Y-%m', timestamp / 1000, 'unixepoch', 'localtime') AS period,
-               SUM(CASE WHEN type = 'REFUND' THEN -amountMinor ELSE amountMinor END) AS total
-        FROM expenses
-        WHERE type IN ('EXPENSE', 'REFUND')
-        GROUP BY period ORDER BY period DESC
-        """
-    )
-    fun observeMonthTotals(): Flow<List<PeriodTotal>>
-
-    /** إجماليات كل بنك في كل شهر — المستوى الثالث في نفس الشجرة. */
-    @Query(
-        """
-        SELECT strftime('%Y-%m', timestamp / 1000, 'unixepoch', 'localtime') AS period,
-               bankName AS bankName,
-               SUM(CASE WHEN type = 'REFUND' THEN -amountMinor ELSE amountMinor END) AS total
-        FROM expenses
-        WHERE type IN ('EXPENSE', 'REFUND')
-        GROUP BY period, bankName ORDER BY total DESC
-        """
-    )
-    fun observeMonthBankTotals(): Flow<List<PeriodBankTotal>>
-
-    /** حركات شهر معيّن لبنك معيّن — بتتحمّل بس لما المستخدم يفتح المجموعة. */
-    @Query(
-        """
-        SELECT * FROM expenses
-        WHERE strftime('%Y-%m', timestamp / 1000, 'unixepoch', 'localtime') = :month
-        AND bankName = :bankName
-        ORDER BY timestamp DESC LIMIT 300
-        """
-    )
-    fun observeMonthBankTransactions(month: String, bankName: String): Flow<List<Expense>>
-
-    /** إجماليات الدخل اليومية — التقويم بيعرض الدخل جنب الصرف. */
-    @Query(
-        """
-        SELECT strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch', 'localtime') AS day,
-               SUM(amountMinor) AS total
-        FROM expenses
-        WHERE type = 'INCOME' AND timestamp BETWEEN :startTime AND :endTime
-        GROUP BY day ORDER BY day ASC
-        """
-    )
-    fun observeDailyIncomeBetween(startTime: Long, endTime: Long): Flow<List<DayTotal>>
-
     @Query(
         """
         SELECT SUM(CASE WHEN type = 'REFUND' THEN -amountMinor ELSE amountMinor END) AS total, COUNT(*) AS count, MAX(amountMinor) AS maxMinor

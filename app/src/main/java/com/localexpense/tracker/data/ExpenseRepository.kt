@@ -65,13 +65,6 @@ class ExpenseRepository(
         expenseDao.observeTotalsByCategoryBetween(start, end)
     fun observeDailyTotalsBetween(start: Long, end: Long): Flow<List<DayTotal>> =
         expenseDao.observeDailyTotalsBetween(start, end)
-    fun observeDailyIncomeBetween(start: Long, end: Long): Flow<List<DayTotal>> =
-        expenseDao.observeDailyIncomeBetween(start, end)
-
-    fun observeMonthTotals(): Flow<List<PeriodTotal>> = expenseDao.observeMonthTotals()
-    fun observeMonthBankTotals(): Flow<List<PeriodBankTotal>> = expenseDao.observeMonthBankTotals()
-    fun observeMonthBankTransactions(month: String, bankName: String): Flow<List<Expense>> =
-        expenseDao.observeMonthBankTransactions(month, bankName)
     fun observeTopMerchantsBetween(start: Long, end: Long, limit: Int = 5): Flow<List<MerchantTotal>> =
         expenseDao.observeTopMerchantsBetween(start, end, limit)
 
@@ -455,16 +448,6 @@ class ExpenseRepository(
             }
         return (fromRecurring + fromInstallments).sortedBy { it.dueDate }
     }
-
-    /**
-     * مهلة التنبيه المحددة للدفعة دي (بالاسم). الأقساط مفيهاش مهلة خاصة،
-     * فبتاخد يوم واحد زي الافتراضي.
-     */
-    suspend fun reminderDaysBefore(name: String, default: Int = 1): Int =
-        recurringExpenseDao.getActive()
-            .firstOrNull { it.displayName == name }
-            ?.reminderDaysBefore
-            ?: default
 
     // ===== محرّك التحليلات =====
 

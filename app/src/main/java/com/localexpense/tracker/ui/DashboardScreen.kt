@@ -37,7 +37,6 @@ import com.localexpense.tracker.domain.Insight
 import com.localexpense.tracker.domain.InsightLevel
 import com.localexpense.tracker.domain.UpcomingKind
 import com.localexpense.tracker.money.formatMinor
-import com.localexpense.tracker.ui.theme.finance
 import com.localexpense.tracker.viewmodel.FinanceViewModel
 import com.localexpense.tracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
@@ -123,13 +122,13 @@ fun DashboardScreen(
                         label = "الدخل",
                         amountMinor = ctx.summary.incomeMinor,
                         modifier = Modifier.weight(1f),
-                        accent = MaterialTheme.finance.income
+                        accent = Color(0xFF43A047)
                     )
                     StatCard(
                         label = "المصروف",
                         amountMinor = ctx.summary.netSpentMinor,
                         modifier = Modifier.weight(1f),
-                        accent = MaterialTheme.finance.expense,
+                        accent = Color(0xFFD85A30),
                         hint = if (ctx.summary.refundMinor > 0) "بعد خصم استرداد ${formatMinor(ctx.summary.refundMinor)}" else null
                     )
                     StatCard(
@@ -163,7 +162,7 @@ fun DashboardScreen(
                         Text(
                             "⚠️ ممكن تتخطى ميزانية الشهر بحوالي ${formatMinor(it)}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.finance.expense
+                            color = Color(0xFFE53935)
                         )
                     }
                 }
@@ -224,11 +223,10 @@ fun DashboardScreen(
                 val categories = ctx.categoryTotals.toList().sortedByDescending { it.second }
                 items(categories.size) { index ->
                     val (name, total) = categories[index]
-                    val palette = chartPalette()
                     AmountRow(
                         label = name,
                         amountMinor = total,
-                        leading = { LegendDot(palette[index % palette.size]) },
+                        leading = { LegendDot(ChartPalette[index % ChartPalette.size]) },
                         trailingText = "${(total * 100 / ctx.summary.netSpentMinor.coerceAtLeast(1)).toInt()}%"
                     )
                 }
@@ -283,8 +281,8 @@ fun DashboardScreen(
 private fun InsightCard(insight: Insight, onDismiss: () -> Unit) {
     val accent = when (insight.level) {
         InsightLevel.INFO -> MaterialTheme.colorScheme.primary
-        InsightLevel.WARNING -> MaterialTheme.finance.warning
-        InsightLevel.ALERT -> MaterialTheme.finance.expense
+        InsightLevel.WARNING -> Color(0xFFFB8C00)
+        InsightLevel.ALERT -> Color(0xFFE53935)
     }
     Card(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),

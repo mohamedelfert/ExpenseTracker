@@ -1,6 +1,5 @@
 package com.localexpense.tracker.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -70,8 +69,6 @@ fun TransactionDetailScreen(
     var showNoteDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showRawText by remember { mutableStateOf(false) }
-    var showAmountDialog by remember { mutableStateOf(false) }
-    var showDateDialog by remember { mutableStateOf(false) }
 
     val dateFormat = remember { SimpleDateFormat("dd MMMM yyyy", Locale("ar")) }
     val timeFormat = remember { SimpleDateFormat("hh:mm a", Locale("ar")) }
@@ -123,8 +120,7 @@ fun TransactionDetailScreen(
                     Text(
                         formatMinor(item.amountMinor, item.currency),
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { showAmountDialog = true }
+                        fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(4.dp))
                     Text("${typeLabel(item.type)} • ${sourceLabel(item.source)}", style = MaterialTheme.typography.labelLarge)
@@ -138,8 +134,8 @@ fun TransactionDetailScreen(
             DetailRow("الفئة", item.categoryName) { showCategoryDialog = true }
             DetailRow("الحساب", accounts.firstOrNull { it.id == item.accountId }?.name ?: "غير محدد")
             DetailRow("البنك", item.bankName)
-            DetailRow("التاريخ", dateFormat.format(Date(item.timestamp))) { showDateDialog = true }
-            DetailRow("الوقت", timeFormat.format(Date(item.timestamp))) { showDateDialog = true }
+            DetailRow("التاريخ", dateFormat.format(Date(item.timestamp)))
+            DetailRow("الوقت", timeFormat.format(Date(item.timestamp)))
             DetailRow("رقم المرجع", item.referenceId.ifBlank { "غير متاح" })
             DetailRow("ملاحظة", item.note.ifBlank { "أضف ملاحظة" }) { showNoteDialog = true }
 
@@ -248,30 +244,6 @@ fun TransactionDetailScreen(
         )
     }
 
-    if (item != null && showAmountDialog) {
-        AmountDialog(
-            title = "تعديل المبلغ",
-            hint = "تعديل مبلغ حركة اتسجلت غلط (مثلاً الـ parser قرا رقم ناقص).",
-            initialMinor = item.amountMinor,
-            onDismiss = { showAmountDialog = false },
-            onConfirm = { amount ->
-                if (amount > 0L) viewModel.updateExpense(item.copy(amountMinor = amount))
-                showAmountDialog = false
-            }
-        )
-    }
-
-    if (item != null && showDateDialog) {
-        DateTimeDialog(
-            initialTimestamp = item.timestamp,
-            onDismiss = { showDateDialog = false },
-            onConfirm = { timestamp ->
-                viewModel.updateExpense(item.copy(timestamp = timestamp))
-                showDateDialog = false
-            }
-        )
-    }
-
     if (item != null && showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
@@ -287,57 +259,6 @@ fun TransactionDetailScreen(
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("إلغاء") } }
         )
     }
-}
-
-/**
- * تعديل تاريخ ووقت الحركة. إدخال نصي (yyyy-MM-dd و HH:mm) بدل DatePicker
- * الكامل: الشاشة دي بتُستخدم لتصحيح حركة ملتقطة غلط، والإدخال النصي أسرع
- * وأقل كود من منتقي تاريخ + منتقي وقت.
- */
-@Composable
-private fun DateTimeDialog(
-    initialTimestamp: Long,
-    onDismiss: () -> Unit,
-    onConfirm: (Long) -> Unit
-) {
-    val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US) }
-    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.US) }
-    var dateText by remember { mutableStateOf(dateFormat.format(Date(initialTimestamp))) }
-    var timeText by remember { mutableStateOf(timeFormat.format(Date(initialTimestamp))) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("تعديل التاريخ والوقت") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = dateText,
-                    onValueChange = { dateText = it; error = null },
-                    label = { Text("التاريخ (yyyy-MM-dd)") }
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = timeText,
-                    onValueChange = { timeText = it; error = null },
-                    label = { Text("الوقت (HH:mm)") }
-                )
-                error?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val parsed = runCatching {
-                    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-                        .parse("${dateText.trim()} ${timeText.trim()}")
-                }.getOrNull()
-                if (parsed == null) error = "الصيغة غلط" else onConfirm(parsed.time)
-            }) { Text("حفظ") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
-    )
 }
 
 @Composable
