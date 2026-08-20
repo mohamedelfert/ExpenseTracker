@@ -238,6 +238,8 @@ fun HomeScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
+        }
+    }
 
             // ===== اختصارات =====
             item {
