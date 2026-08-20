@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -53,6 +54,8 @@ fun HomeScreen(
 
     var showDisclosureDialog by remember { mutableStateOf(false) }
     var showCleanupConfirmDialog by remember { mutableStateOf(false) }
+    var showArchiveDialog by remember { mutableStateOf(false) }
+    var showImportRangeDialog by remember { mutableStateOf(false) }
 
     // حالات فتح وإغلاق السنوات والشهور
     val expandedYears = remember { mutableStateMapOf<String, Boolean>() }
@@ -115,6 +118,15 @@ fun HomeScreen(
             }
     }
 
+    // إجمالي كل سنة مؤرشفة، عشان تظهر في شاشة الأرشيف حتى وهي مخفية من القائمة الرئيسية
+    val archivedYearTotals = remember(expenses, archivedYears.toList()) {
+        expenses.groupBy { yearFormatter.format(Date(it.timestamp)) }
+            .filterKeys { year -> year in archivedYears }
+            .mapValues { (_, yearExpenses) -> yearExpenses.sumOf { it.amount } }
+            .toList()
+            .sortedByDescending { it.first }
+    }
+
     if (showCleanupConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showCleanupConfirmDialog = false },
@@ -139,6 +151,24 @@ fun HomeScreen(
                 TextButton(onClick = { showCleanupConfirmDialog = false }) {
                     Text("إلغاء")
                 }
+            }
+        )
+    }
+
+    if (showArchiveDialog) {
+        ArchiveDialog(
+            archivedYearTotals = archivedYearTotals,
+            onUnarchive = { year -> viewModel.unarchiveYear(year) },
+            onDismiss = { showArchiveDialog = false }
+        )
+    }
+
+    if (showImportRangeDialog) {
+        ImportRangeDialog(
+            onDismiss = { showImportRangeDialog = false },
+            onConfirm = { start, end ->
+                showImportRangeDialog = false
+                viewModel.importFromInbox(start, end)
             }
         )
     }
@@ -177,6 +207,9 @@ fun HomeScreen(
                 TopAppBar(
                     title = { Text("مصروفاتي", fontWeight = FontWeight.Bold, color = Color.White) },
                     actions = {
+                        IconButton(onClick = { showArchiveDialog = true }) {
+                            Icon(Icons.Default.Unarchive, contentDescription = "الأرشيف", tint = Color.White)
+                        }
                         IconButton(onClick = onOpenRecurring) {
                             Icon(Icons.Default.DateRange, contentDescription = "الدوريات", tint = Color.White)
                         }
@@ -223,7 +256,7 @@ fun HomeScreen(
             if (BuildConfig.ENABLE_SMS_IMPORT) {
                 Button(
                     onClick = {
-                        if (smsPermissionGranted) viewModel.importFromInbox() else showDisclosureDialog = true
+                        if (smsPermissionGranted) showImportRangeDialog = true else showDisclosureDialog = true
                     },
                     enabled = !isImporting,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00897B)),
@@ -474,6 +507,175 @@ private fun PermissionsCard(
             }
         }
     }
+}
+
+@Composable
+private fun ArchiveDialog(
+    archivedYearTotals: List<Pair<String, Double>>,
+    onUnarchive: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1E1E1E),
+        titleContentColor = Color.White,
+        title = { Text("الأرشيف") },
+        text = {
+            if (archivedYearTotals.isEmpty()) {
+                Text("مفيش سنوات مؤرشفة دلوقتي", color = Color.Gray, fontSize = 13.sp)
+            } else {
+                Column {
+                    Text(
+                        "السنوات دي متخفية من الشاشة الرئيسية بس، مصروفاتها لسه محفوظة بالكامل. اضغط \"إظهار\" لترجعها.",
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    archivedYearTotals.forEach { (year, total) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("سنة $year", color = Color.White, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "${String.format(Locale.US, "%.2f", total)} ج.م",
+                                    color = Color(0xFF80CBC4),
+                                    fontSize = 12.sp
+                                )
+                            }
+                            TextButton(onClick = { onUnarchive(year) }) {
+                                Text("إظهار", color = Color(0xFF4DB6AC))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("تمام", color = Color.White) }
+        }
+    )
+}
+
+private enum class ImportRangeOption { LAST_3_MONTHS, LAST_6_MONTHS, CURRENT_YEAR, SPECIFIC_YEAR, ALL_TIME }
+
+@Composable
+private fun ImportRangeDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (startMillis: Long?, endMillis: Long?) -> Unit
+) {
+    var selectedOption by remember { mutableStateOf(ImportRangeOption.LAST_3_MONTHS) }
+    val currentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }
+    val availableYears = remember { (currentYear downTo currentYear - 6).toList() }
+    var selectedYear by remember { mutableStateOf(currentYear) }
+    var yearMenuExpanded by remember { mutableStateOf(false) }
+
+    fun rangeFor(option: ImportRangeOption): Pair<Long?, Long?> {
+        val cal = Calendar.getInstance()
+        return when (option) {
+            ImportRangeOption.LAST_3_MONTHS -> {
+                cal.add(Calendar.MONTH, -3)
+                cal.timeInMillis to null
+            }
+            ImportRangeOption.LAST_6_MONTHS -> {
+                cal.add(Calendar.MONTH, -6)
+                cal.timeInMillis to null
+            }
+            ImportRangeOption.CURRENT_YEAR -> {
+                cal.set(currentYear, Calendar.JANUARY, 1, 0, 0, 0)
+                cal.timeInMillis to null
+            }
+            ImportRangeOption.SPECIFIC_YEAR -> {
+                val start = Calendar.getInstance().apply {
+                    set(selectedYear, Calendar.JANUARY, 1, 0, 0, 0)
+                }.timeInMillis
+                val end = Calendar.getInstance().apply {
+                    set(selectedYear, Calendar.DECEMBER, 31, 23, 59, 59)
+                }.timeInMillis
+                start to end
+            }
+            ImportRangeOption.ALL_TIME -> null to null
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1E1E1E),
+        titleContentColor = Color.White,
+        title = { Text("استيراد الرسائل من") },
+        text = {
+            Column {
+                Text(
+                    "حدد المدى الزمني عشان الاستيراد يبقى أسرع ومش يجيب مصروفات من سنين مش محتاجها.",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val options = listOf(
+                    ImportRangeOption.LAST_3_MONTHS to "آخر 3 شهور",
+                    ImportRangeOption.LAST_6_MONTHS to "آخر 6 شهور",
+                    ImportRangeOption.CURRENT_YEAR to "السنة الحالية ($currentYear)",
+                    ImportRangeOption.SPECIFIC_YEAR to "سنة محددة",
+                    ImportRangeOption.ALL_TIME to "كل الرسائل (من غير حد)"
+                )
+
+                options.forEach { (option, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedOption == option,
+                            onClick = { selectedOption = option },
+                            colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF00897B))
+                        )
+                        Text(label, color = Color.White, fontSize = 14.sp)
+                    }
+                }
+
+                if (selectedOption == ImportRangeOption.SPECIFIC_YEAR) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(modifier = Modifier.padding(start = 40.dp)) {
+                        OutlinedButton(onClick = { yearMenuExpanded = true }) {
+                            Text("$selectedYear", color = Color.White)
+                        }
+                        DropdownMenu(
+                            expanded = yearMenuExpanded,
+                            onDismissRequest = { yearMenuExpanded = false }
+                        ) {
+                            availableYears.forEach { year ->
+                                DropdownMenuItem(
+                                    text = { Text("$year") },
+                                    onClick = {
+                                        selectedYear = year
+                                        yearMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val (start, end) = rangeFor(selectedOption)
+                onConfirm(start, end)
+            }) {
+                Text("استيراد", color = Color(0xFF4DB6AC), fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("إلغاء", color = Color.Gray) }
+        }
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)

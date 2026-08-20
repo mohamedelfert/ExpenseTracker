@@ -9,13 +9,36 @@ import kotlinx.coroutines.withContext
 
 object SmsImporter {
 
-    suspend fun importAllSms(context: Context): Pair<Int, Int> = withContext(Dispatchers.IO) {
+    /**
+     * لو [startMillis]/[endMillis] اتحددوا، هيتم فلترة رسائل الـ SMS على مستوى
+     * الاستعلام نفسه (مش بعد القراءة) عشان الاستيراد يكون أسرع ومياخدش داتا
+     * من سنين فاتت من غير ما المستخدم يطلبها. null في أي طرف يعني من غير حد
+     * (من الأول / لحد النهارده).
+     */
+    suspend fun importAllSms(
+        context: Context,
+        startMillis: Long? = null,
+        endMillis: Long? = null
+    ): Pair<Int, Int> = withContext(Dispatchers.IO) {
         val contentResolver = context.contentResolver
+
+        val selectionParts = mutableListOf<String>()
+        val selectionArgs = mutableListOf<String>()
+        if (startMillis != null) {
+            selectionParts += "${Telephony.Sms.DATE} >= ?"
+            selectionArgs += startMillis.toString()
+        }
+        if (endMillis != null) {
+            selectionParts += "${Telephony.Sms.DATE} <= ?"
+            selectionArgs += endMillis.toString()
+        }
+        val selection = selectionParts.takeIf { it.isNotEmpty() }?.joinToString(" AND ")
+
         val cursor = contentResolver.query(
             Telephony.Sms.CONTENT_URI,
             arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
-            null,
-            null,
+            selection,
+            selectionArgs.takeIf { it.isNotEmpty() }?.toTypedArray(),
             "${Telephony.Sms.DATE} DESC"
         )
 

@@ -152,6 +152,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _archivedYears.value = current
     }
 
+    fun unarchiveYear(year: String) {
+        val current = _archivedYears.value.toMutableSet()
+        current.remove(year)
+        prefs.edit().putStringSet("archived_years", current).apply()
+        _archivedYears.value = current
+    }
+
     fun addCategory(name: String) {
         val trimmed = name.trim()
         if (trimmed.isBlank()) return
@@ -243,11 +250,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.deleteRecurringExpense(recurringExpense) }
     }
 
-    fun importFromInbox() {
+    fun importFromInbox(startMillis: Long? = null, endMillis: Long? = null) {
         viewModelScope.launch {
             _importState.value = ImportState.Running
             val (scanned, imported) = withContext(Dispatchers.IO) {
-                SmsImporter.importAllSms(getApplication())
+                SmsImporter.importAllSms(getApplication(), startMillis, endMillis)
             }
             _importState.value = ImportState.Done(scanned = scanned, imported = imported)
         }
