@@ -31,6 +31,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -196,11 +197,14 @@ fun HomeScreen(
             contentPadding = PaddingValues(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // ===== بطاقة ملخص الشهر =====
+            // ===== بطاقة ملخص الشهر (Hero) =====
             item {
-                MonthSummaryCard(
-                    spentMinor = currentMonthTotal,
-                    onOpenDashboard = onOpenDashboard,
+                HeroBalanceCard(
+                    title = "مصروفات الشهر الحالي",
+                    amountMinor = currentMonthTotal,
+                    subtitle = "اضغط لعرض التحليلات: التوقّع، المقارنة بالشهر اللي فات، والرؤى",
+                    icon = Icons.Default.BarChart,
+                    onClick = onOpenDashboard,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
@@ -211,7 +215,7 @@ fun HomeScreen(
                     Modifier
                         .horizontalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     QuickAction(Icons.Default.BarChart, "التحليلات", onOpenDashboard)
                     QuickAction(Icons.Default.CalendarMonth, "التقويم", onOpenCalendar)
@@ -454,57 +458,26 @@ fun HomeScreen(
     }
 }
 
-/** بطاقة الشهر الحالي: الرقم الأهم في الشاشة، بأكبر مقاس في السلّم. */
-@Composable
-private fun MonthSummaryCard(
-    spentMinor: Long,
-    onOpenDashboard: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onOpenDashboard),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        ),
-        shape = MaterialTheme.shapes.large
-    ) {
-        Column(Modifier.padding(20.dp)) {
-            Text("مصروفات الشهر الحالي", style = MaterialTheme.typography.labelLarge)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                formatMinor(spentMinor),
-                style = MaterialTheme.typography.displayMedium
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "اضغط لعرض التحليلات: التوقّع، المقارنة بالشهر اللي فات، والرؤى",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-}
-
+/** اختصار سريع: بادچ أيقونة دائري ملوّن فوق تسمية — نفس لغة IconBadge
+ * المستخدمة في بطاقات الأرقام، عشان الشاشة كلها تحسّ إنها نظام واحد. */
 @Composable
 private fun QuickAction(icon: ImageVector, label: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.width(96.dp)
+    Column(
+        modifier = Modifier
+            .width(76.dp)
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                maxLines = 1
-            )
-        }
+        IconBadge(icon = icon, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
     }
 }
 
@@ -557,7 +530,15 @@ private fun LedgerRow(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp + (level * 12).dp, end = 16.dp)
+            .padding(start = 16.dp + (level * 12).dp, end = 16.dp, bottom = 6.dp)
+            .let {
+                if (level == 0) it.shadow(
+                    elevation = 2.dp,
+                    shape = MaterialTheme.shapes.medium,
+                    ambientColor = Color.Black.copy(alpha = 0.08f),
+                    spotColor = Color.Black.copy(alpha = 0.08f)
+                ) else it
+            }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else container

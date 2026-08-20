@@ -10,14 +10,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.PriorityHigh
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -95,20 +100,25 @@ fun DashboardScreen(
 
             // ===== الشهر + التنقل بين الشهور =====
             item {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                SoftCard(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
                 ) {
-                    IconButton(onClick = { finance.showMonth(monthOffset - 1) }) {
-                        Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "الشهر السابق")
-                    }
-                    Text(ctx.monthLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    IconButton(
-                        onClick = { finance.showMonth(monthOffset + 1) },
-                        enabled = monthOffset < 0
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "الشهر التالي")
+                        IconButton(onClick = { finance.showMonth(monthOffset - 1) }) {
+                            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = "الشهر السابق")
+                        }
+                        Text(ctx.monthLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        IconButton(
+                            onClick = { finance.showMonth(monthOffset + 1) },
+                            enabled = monthOffset < 0
+                        ) {
+                            Icon(Icons.Filled.KeyboardArrowLeft, contentDescription = "الشهر التالي")
+                        }
                     }
                 }
             }
@@ -123,19 +133,22 @@ fun DashboardScreen(
                         label = "الدخل",
                         amountMinor = ctx.summary.incomeMinor,
                         modifier = Modifier.weight(1f),
-                        accent = MaterialTheme.finance.income
+                        accent = MaterialTheme.finance.income,
+                        icon = Icons.Default.ArrowDownward
                     )
                     StatCard(
                         label = "المصروف",
                         amountMinor = ctx.summary.netSpentMinor,
                         modifier = Modifier.weight(1f),
                         accent = MaterialTheme.finance.expense,
+                        icon = Icons.Default.ArrowUpward,
                         hint = if (ctx.summary.refundMinor > 0) "بعد خصم استرداد ${formatMinor(ctx.summary.refundMinor)}" else null
                     )
                     StatCard(
                         label = if (ctx.summary.incomeMinor > 0) "المتبقي" else "الصافي",
                         amountMinor = if (ctx.summary.incomeMinor > 0) ctx.summary.remainingMinor else ctx.summary.netCashFlowMinor,
                         modifier = Modifier.weight(1f),
+                        icon = Icons.Default.AccountBalanceWallet,
                         showSign = true
                     )
                 }
@@ -286,17 +299,24 @@ private fun InsightCard(insight: Insight, onDismiss: () -> Unit) {
         InsightLevel.WARNING -> MaterialTheme.finance.warning
         InsightLevel.ALERT -> MaterialTheme.finance.expense
     }
-    Card(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    val icon = when (insight.level) {
+        InsightLevel.INFO -> Icons.Default.Lightbulb
+        InsightLevel.WARNING -> Icons.Default.WarningAmber
+        InsightLevel.ALERT -> Icons.Default.PriorityHigh
+    }
+    SoftCard(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        containerColor = MaterialTheme.colorScheme.surface
     ) {
         Row(
             Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(insight.text, style = MaterialTheme.typography.bodySmall, color = accent, modifier = Modifier.weight(1f))
+            IconBadge(icon = icon, tint = accent, size = 34.dp)
+            Spacer(Modifier.width(10.dp))
+            Text(insight.text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Filled.Close, contentDescription = "إخفاء")
+                Icon(Icons.Filled.Close, contentDescription = "إخفاء", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

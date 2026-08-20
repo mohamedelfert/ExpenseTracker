@@ -14,10 +14,17 @@ import androidx.compose.ui.graphics.Color
 // ===== الهوية (أخضر زمردي) =====
 val Emerald700 = Color(0xFF0B6B57)
 val Emerald600 = Color(0xFF0E7C66)
+val Emerald500 = Color(0xFF189E80)
 val Emerald400 = Color(0xFF3FB894)
 val Emerald300 = Color(0xFF66D9B8)
 val Emerald100 = Color(0xFFB9EFDD)
 val Emerald900 = Color(0xFF00281F)
+
+/** تدرّج الهوية المستخدم في البطاقة الرئيسية (Hero) — نفس أخضر النظام،
+ * بس بتدرّج بدل لون مسطّح، عشان يبقى العنصر المميّز اللي التطبيق يتعرف
+ * بيه من أول نظرة. */
+val HeroGradientLight = listOf(Emerald700, Emerald500, Emerald400)
+val HeroGradientDark = listOf(Color(0xFF04241C), Emerald700, Emerald500)
 
 // ===== لون مساند (أزرق هادي للمعلومات والروابط) =====
 val Ocean600 = Color(0xFF25628F)

@@ -85,7 +85,8 @@ data class FinanceColors(
     val expense: Color,
     val transfer: Color,
     val warning: Color,
-    val chart: List<Color>
+    val chart: List<Color>,
+    val heroGradient: List<Color>
 )
 
 private val LightFinanceColors = FinanceColors(
@@ -93,7 +94,8 @@ private val LightFinanceColors = FinanceColors(
     expense = ExpenseLight,
     transfer = TransferLight,
     warning = Amber600,
-    chart = ChartLight
+    chart = ChartLight,
+    heroGradient = HeroGradientLight
 )
 
 private val DarkFinanceColors = FinanceColors(
@@ -101,7 +103,8 @@ private val DarkFinanceColors = FinanceColors(
     expense = ExpenseDark,
     transfer = TransferDark,
     warning = Amber300,
-    chart = ChartDark
+    chart = ChartDark,
+    heroGradient = HeroGradientDark
 )
 
 val LocalFinanceColors = staticCompositionLocalOf { LightFinanceColors }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,9 +14,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,7 +26,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,7 +64,7 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -68,13 +74,118 @@ fun SectionHeader(title: String, action: String? = null, onAction: (() -> Unit)?
                 action,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable(onClick = onAction)
             )
         }
     }
 }
 
-/** بطاقة رقم واحد: عنوان صغير + مبلغ كبير + سطر مساعد اختياري. */
+/**
+ * بطاقة أساسية بظل خفيف وناعم بدل الاعتماد على tonal elevation بس — ده اللي
+ * بيدي إحساس "عائم فوق الخلفية" الحديث بدل السطح المسطّح. مستخدمة كأساس
+ * لأي بطاقة تانية في التطبيق عشان الشكل يفضل موحّد في كل شاشة.
+ */
+@Composable
+fun SoftCard(
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    shape: androidx.compose.ui.graphics.Shape = MaterialTheme.shapes.medium,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier
+            .shadow(elevation = 3.dp, shape = shape, ambientColor = Color.Black.copy(alpha = 0.10f), spotColor = Color.Black.copy(alpha = 0.10f))
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it },
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = shape
+    ) {
+        Column(content = content)
+    }
+}
+
+/** دايرة أيقونة ملوّنة (badge) — بتُستخدم قبل الأرقام والعناوين عشان تدّي
+ * توجيه بصري سريع (نوع الحركة، الفئة، ...) بدل الاعتماد على النص بس. */
+@Composable
+fun IconBadge(
+    icon: ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 40.dp,
+    containerAlpha: Float = 0.14f
+) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(tint.copy(alpha = containerAlpha)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size * 0.5f))
+    }
+}
+
+/**
+ * البطاقة الرئيسية بتاعة الشاشة الرئيسية والداشبورد — العنصر المميّز للتصميم
+ * الجديد: تدرّج بلون الهوية بدل سطح مسطّح، ورقم كبير هو أول حاجة تتشاف.
+ */
+@Composable
+fun HeroBalanceCard(
+    title: String,
+    amountMinor: Long,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    onClick: (() -> Unit)? = null
+) {
+    val gradient = MaterialTheme.finance.heroGradient
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(elevation = 10.dp, shape = MaterialTheme.shapes.extraLarge, ambientColor = gradient.first().copy(alpha = 0.35f), spotColor = gradient.first().copy(alpha = 0.35f))
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(Brush.linearGradient(gradient))
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+    ) {
+        Column(Modifier.padding(22.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+                if (icon != null) {
+                    Box(
+                        Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                formatMinor(amountMinor),
+                style = MaterialTheme.typography.displayMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.85f)
+            )
+        }
+    }
+}
+
+/** بطاقة رقم واحد: عنوان صغير + مبلغ كبير + سطر مساعد اختياري، مع بادچ
+ * أيقونة اختياري لتوجيه بصري أسرع. */
 @Composable
 fun StatCard(
     label: String,
@@ -82,14 +193,15 @@ fun StatCard(
     modifier: Modifier = Modifier,
     hint: String? = null,
     accent: Color = MaterialTheme.colorScheme.primary,
-    showSign: Boolean = false
+    showSign: Boolean = false,
+    icon: ImageVector? = null
 ) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        shape = MaterialTheme.shapes.medium
-    ) {
-        Column(Modifier.padding(12.dp)) {
+    SoftCard(modifier = modifier, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(Modifier.padding(14.dp)) {
+            if (icon != null) {
+                IconBadge(icon = icon, tint = accent, size = 30.dp)
+                Spacer(Modifier.height(8.dp))
+            }
             Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(4.dp))
             val prefix = if (showSign && amountMinor > 0) "+" else ""
@@ -97,7 +209,8 @@ fun StatCard(
                 "$prefix${formatMinor(amountMinor)}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = accent
+                color = accent,
+                maxLines = 1
             )
             if (hint != null) {
                 Spacer(Modifier.height(2.dp))
