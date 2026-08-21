@@ -58,9 +58,9 @@ class TransactionSourcesTest {
 
     @Test
     fun `generic amount extraction handles both currency positions`() {
-        assertEquals(12_550, SmsParser.extractAmountMinor("تم خصم مبلغ 125.50 من حسابك"))
-        assertEquals(12_550, SmsParser.extractAmountMinor("Purchase 125.50 EGP approved"))
-        assertEquals(125_075, SmsParser.extractAmountMinor("خصم EGP 1,250.75"))
+        assertEquals(12_550L, SmsParser.extractAmountMinor("تم خصم مبلغ 125.50 من حسابك"))
+        assertEquals(12_550L, SmsParser.extractAmountMinor("Purchase 125.50 EGP approved"))
+        assertEquals(125_075L, SmsParser.extractAmountMinor("خصم EGP 1,250.75"))
         assertNull(SmsParser.extractAmountMinor("رصيدك الحالي غير متاح"))
     }
 }

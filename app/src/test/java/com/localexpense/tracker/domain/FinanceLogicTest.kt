@@ -70,7 +70,7 @@ class FinanceLogicTest {
     @Test
     fun `forecast flags budget overrun`() {
         val result = forecast(1_200_000, 20, 30, budgetLimitMinor = 1_680_000)
-        assertEquals(120_000, result.projectedOverBudgetMinor)   // 18,000 - 16,800
+        assertEquals(120_000L, result.projectedOverBudgetMinor)   // 18,000 - 16,800
     }
 
     @Test
