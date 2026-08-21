@@ -15,9 +15,10 @@ import java.io.File
 @Database(
     entities = [
         Expense::class, Category::class, SmsRule::class, Budget::class, RecurringExpense::class,
-        Account::class, Merchant::class, MerchantRule::class, Installment::class
+        Account::class, Merchant::class, MerchantRule::class, Installment::class,
+        SavingsGoal::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -32,6 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun merchantDao(): MerchantDao
     abstract fun merchantRuleDao(): MerchantRuleDao
     abstract fun installmentDao(): InstallmentDao
+    abstract fun savingsGoalDao(): SavingsGoalDao
 
     companion object {
         @Volatile
@@ -85,7 +87,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // من 1 لـ 7 ليها مسار: 1..4 -> 5 ترقية استكشافية (مخططها
                 // مجهول، راجع LegacyMigrations)، 5->6 تحويل المبالغ لوحدات
                 // صغرى، 6->7 كل مخطط المراحل 3-20.
-                .addMigrations(*LEGACY_MIGRATIONS, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(*LEGACY_MIGRATIONS, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 // ممنوع نضيف fallbackToDestructiveMigrationFrom(1, 2, 3, 4)
                 // هنا: Room بيرفض إن نسخة بداية يكون ليها migration مسجّلة
                 // **و** تكون في قايمة الـ fallback في نفس الوقت، وبيرمي

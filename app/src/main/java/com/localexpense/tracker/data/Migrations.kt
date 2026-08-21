@@ -218,3 +218,25 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         )
     }
 }
+
+/**
+ * الترقية 7 -> 8: جدول أهداف الادخار (Savings Goals Tracker).
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS savings_goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                targetMinor INTEGER NOT NULL,
+                savedMinor INTEGER NOT NULL DEFAULT 0,
+                iconName TEXT,
+                createdAt INTEGER NOT NULL DEFAULT 0,
+                deadlineAt INTEGER,
+                isArchived INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
+    }
+}

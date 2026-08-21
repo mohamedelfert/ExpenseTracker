@@ -562,6 +562,7 @@ private fun LedgerRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BankTransactions(
     viewModel: MainViewModel,
@@ -576,11 +577,62 @@ private fun BankTransactions(
 
     Column(Modifier.padding(start = 52.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)) {
         transactions.forEach { expense ->
-            TransactionRow(
-                expense = expense,
-                timeLabel = timeFormatter.format(Date(expense.timestamp)),
-                onClick = { onOpenTransaction(expense.id) }
+            val dismissState = rememberSwipeToDismissBoxState(
+                confirmValueChange = { value ->
+                    when (value) {
+                        SwipeToDismissBoxValue.StartToEnd -> {
+                            onOpenTransaction(expense.id)
+                            false
+                        }
+                        SwipeToDismissBoxValue.EndToStart -> {
+                            viewModel.deleteExpense(expense)
+                            true
+                        }
+                        else -> false
+                    }
+                }
             )
+
+            SwipeToDismissBox(
+                state = dismissState,
+                backgroundContent = {
+                    val direction = dismissState.dismissDirection
+                    val color = when (direction) {
+                        SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
+                        SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.errorContainer
+                        else -> Color.Transparent
+                    }
+                    val icon = when (direction) {
+                        SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Info
+                        SwipeToDismissBoxValue.EndToStart -> Icons.Default.Close
+                        else -> null
+                    }
+                    val alignment = when (direction) {
+                        SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                        SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+                        else -> Alignment.Center
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(MaterialTheme.shapes.small)
+                            .background(color)
+                            .padding(horizontal = 16.dp),
+                        contentAlignment = alignment
+                    ) {
+                        if (icon != null) {
+                            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            ) {
+                TransactionRow(
+                    expense = expense,
+                    timeLabel = timeFormatter.format(Date(expense.timestamp)),
+                    onClick = { onOpenTransaction(expense.id) }
+                )
+            }
         }
     }
 }
