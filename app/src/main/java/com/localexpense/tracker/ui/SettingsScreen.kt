@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.localexpense.tracker.data.BackupManager
+import com.localexpense.tracker.data.SmsSyncRange
 import com.localexpense.tracker.util.CrashLog
 import com.localexpense.tracker.security.AppLock
 import com.localexpense.tracker.security.BiometricAuth
@@ -78,6 +79,8 @@ fun SettingsScreen(
     var timeout by remember { mutableStateOf(AppLock.timeout(context)) }
     var showPinDialog by remember { mutableStateOf(false) }
     var anomalyMultiplier by remember { mutableStateOf(viewModel.settings.anomalyMultiplier) }
+    var smsSyncRange by remember { mutableStateOf(viewModel.settings.smsSyncRange) }
+    var smsSyncYear by remember { mutableStateOf(viewModel.settings.smsSyncYear) }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
     var showRestrictedHelp by remember { mutableStateOf(false) }
     var crashReport by remember { mutableStateOf(CrashLog.read(context)) }
@@ -251,6 +254,55 @@ fun SettingsScreen(
                         checked = useDynamicColor,
                         onCheckedChange = { viewModel.setUseDynamicColor(it) }
                     )
+                }
+            }
+
+            // ===== مزامنة الرسائل (سحب الرئيسية لتحت) =====
+            item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+            item { SectionHeader("مزامنة الرسائل") }
+            item {
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    Text(
+                        "لما تسحب الشاشة الرئيسية لتحت، التطبيق بيفحص رسائل البنوك ويستورد " +
+                            "أي حركة جديدة من المدى ده.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val rangeLabels = mapOf(
+                            SmsSyncRange.LAST_MONTH to "آخر شهر",
+                            SmsSyncRange.LAST_3_MONTHS to "آخر 3 شهور",
+                            SmsSyncRange.LAST_6_MONTHS to "آخر 6 شهور",
+                            SmsSyncRange.SPECIFIC_YEAR to "سنة معينة"
+                        )
+                        rangeLabels.forEach { (range, label) ->
+                            FilterChip(
+                                selected = smsSyncRange == range,
+                                onClick = {
+                                    smsSyncRange = range
+                                    viewModel.settings.smsSyncRange = range
+                                },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                    if (smsSyncRange == SmsSyncRange.SPECIFIC_YEAR) {
+                        Spacer(Modifier.height(8.dp))
+                        val currentYear = remember { java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            (currentYear downTo currentYear - 4).forEach { year ->
+                                FilterChip(
+                                    selected = smsSyncYear == year,
+                                    onClick = {
+                                        smsSyncYear = year
+                                        viewModel.settings.smsSyncYear = year
+                                    },
+                                    label = { Text(year.toString()) }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

@@ -51,7 +51,6 @@ import com.localexpense.tracker.viewmodel.CleanupState
 import com.localexpense.tracker.viewmodel.ImportState
 import com.localexpense.tracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -133,9 +132,8 @@ fun HomeScreen(
     if (pullToRefreshState.isRefreshing) {
         LaunchedEffect(true) {
             if (BuildConfig.ENABLE_SMS_IMPORT && smsPermissionGranted && !isImporting) {
-                val cal = Calendar.getInstance()
-                cal.add(Calendar.MONTH, -3)
-                viewModel.importFromInbox(cal.timeInMillis, null)
+                val (start, end) = viewModel.settings.smsSyncTimeRange()
+                viewModel.importFromInbox(start, end)
             } else if (!smsPermissionGranted && BuildConfig.ENABLE_SMS_IMPORT) {
                 showDisclosureDialog = true
                 pullToRefreshState.endRefresh()
