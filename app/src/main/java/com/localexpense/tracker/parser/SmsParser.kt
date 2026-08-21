@@ -70,6 +70,26 @@ object SmsParser {
     }
 
     /**
+     * هل المرسل/النص ده بيتطابق مع مصدر معروف رسميًا — إما في سجل
+     * [TransactionSources] أو في قاعدة مستخدم مفعّلة من [customRules]؟
+     * فحص تعرّف بسيط بس (مفيش استخراج مبلغ أو جهة)، مستقل تمامًا عن نتيجة
+     * [parseSms] نفسها: ممكن الرسالة تتقرا بنجاح (مبلغ وجهة صح) بالمنطق
+     * العام برضه حتى لو المصدر مش معروف — الفحص ده الغرض منه بس تمييز
+     * "اتقرت من بنك مش في القايمة الرسمية" عشان تقدر تقترح على المستخدم
+     * يضيف قاعدة له صراحة، مش تحديد هل الرسالة اتسجلت أو لأ.
+     */
+    fun isKnownSource(sender: String, body: String, customRules: List<SmsRule>): Boolean {
+        if (TransactionSources.resolve(sender, body) != null) return true
+        return customRules.any { rule ->
+            rule.isEnabled && rule.senderPattern.isNotBlank() &&
+                runCatching {
+                    val regex = Regex(rule.senderPattern, RegexOption.IGNORE_CASE)
+                    regex.containsMatchIn(sender) || regex.containsMatchIn(body)
+                }.getOrDefault(false)
+        }
+    }
+
+    /**
      * نوع العملية من نص الرسالة (المرحلة 6): الاسترداد بيتفحص الأول لأن رسالة
      * الاسترداد غالبًا فيها كلمة "إيداع" كمان، والإيداع/التحويل الوارد = دخل.
      * null = الرسالة دي مش عملية مالية أصلاً (إعلان، OTP، رصيد...).

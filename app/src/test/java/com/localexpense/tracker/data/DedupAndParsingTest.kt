@@ -66,6 +66,38 @@ class DedupAndParsingTest {
     }
 
     @Test
+    fun `isKnownSource recognizes registered banks regardless of message content`() {
+        // CIB مسجّل في TransactionSources.ALL - لازم يترفض كـ "مصدر معروف"
+        // حتى لو النص نفسه مش مطابق لأي كلمة دالة.
+        assertTrue(SmsParser.isKnownSource("CIB", "أي نص عشوائي", emptyList()))
+    }
+
+    @Test
+    fun `isKnownSource recognizes enabled custom rules by sender`() {
+        val rule = SmsRule(
+            bankName = "بنك تجريبي",
+            senderPattern = "TESTBANK",
+            debitKeywordPattern = "خصم",
+            amountPattern = """([\d,]+(?:\.\d{1,2})?)""",
+            merchantPattern = ""
+        )
+        assertTrue(SmsParser.isKnownSource("TESTBANK", "تم خصم 100 EGP", listOf(rule)))
+        // نفس القاعدة بس متعطّلة - المفروض ترجع false
+        assertEquals(
+            false,
+            SmsParser.isKnownSource("TESTBANK", "تم خصم 100 EGP", listOf(rule.copy(isEnabled = false)))
+        )
+    }
+
+    @Test
+    fun `isKnownSource returns false for a genuinely unrecognized sender`() {
+        assertEquals(
+            false,
+            SmsParser.isKnownSource("55555", "تم خصم 100 جنيه من حسابك", emptyList())
+        )
+    }
+
+    @Test
     fun `signed amount excludes transfers from any total`() {
         val base = Expense(
             amountMinor = 10_000, merchant = "x", bankName = "y",

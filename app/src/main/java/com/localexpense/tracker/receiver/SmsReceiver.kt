@@ -6,6 +6,7 @@ import android.content.Intent
 import android.provider.Telephony
 import com.localexpense.tracker.data.AppDatabase
 import com.localexpense.tracker.data.ExpenseRepository
+import com.localexpense.tracker.data.UnknownSourceTracker
 import com.localexpense.tracker.notification.BudgetAlertChecker
 import com.localexpense.tracker.notification.NotificationHelper
 import com.localexpense.tracker.parser.SmsParser
@@ -46,6 +47,20 @@ class SmsReceiver : BroadcastReceiver() {
                             BudgetAlertChecker.checkAndNotify(
                                 context, dao, db.budgetDao(), saved.categoryName, saved.timestamp
                             )
+
+                            // مصدر جديد؟ الرسالة اتسجلت لكن المرسل مش في سجل
+                            // TransactionSources ولا في قاعدة مستخدم مفعّلة —
+                            // يبقى قراءتها اعتمدت على المنطق العام بس، ودقتها
+                            // مش مضمونة. نبلّغ المستخدم مرة واحدة لكل مرسل بس
+                            // (UnknownSourceTracker) عشان ميتكررش الإشعار مع
+                            // كل رسالة جديدة من نفس البنك.
+                            if (sender.isNotBlank() &&
+                                !SmsParser.isKnownSource(sender, body, customRules) &&
+                                !UnknownSourceTracker.hasBeenNotified(context, sender)
+                            ) {
+                                NotificationHelper.showUnknownSourceNotification(context, sender)
+                                UnknownSourceTracker.markNotified(context, sender)
+                            }
                         }
                     }
                 } catch (e: Exception) {

@@ -2,6 +2,7 @@ package com.localexpense.tracker.notification
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -11,9 +12,11 @@ import com.localexpense.tracker.money.formatMinor
 
 /**
  * نقطة موحّدة لكل إشعارات التطبيق (بدل ما كل مكان يعرّف الـ channel بتاعه
- * لوحده زي ما كان الحال قبل كده في SmsReceiver). بيغطي نوعين:
+ * لوحده زي ما كان الحال قبل كده في SmsReceiver). بيغطي الأنواع دي:
  * 1. إشعار "تم تسجيل مصروف جديد" - بيظهر فور التقاط عملية بنكية.
  * 2. إشعار "تنبيه ميزانية" - بيظهر لما فئة معينة تقرب أو تتخطى حد الميزانية.
+ * 3. إشعار "مصدر جديد" - بيظهر لما رسالة تتقرا من مرسل مش في سجل المصادر
+ *    المعروف ولا في قواعد المستخدم، عشان يقدر يضيف قاعدة له بنفسه.
  *
  * كله محلي، بيستخدم NotificationManager العادي بتاع أندرويد، ومفيش أي اتصال
  * بأي سيرفر أو خدمة خارجية.
@@ -22,6 +25,7 @@ object NotificationHelper {
 
     const val CHANNEL_EXPENSE_CAPTURED = "expense_tracker_channel"
     const val CHANNEL_BUDGET_ALERT = "budget_alert_channel"
+    const val CHANNEL_UNKNOWN_SOURCE = "unknown_source_channel"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -45,6 +49,16 @@ object NotificationHelper {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "تنبيه لما مصروفات فئة معينة تقرب أو تتخطى الميزانية المحددة لها"
+            }
+        )
+
+        notificationManager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_UNKNOWN_SOURCE,
+                "مصادر جديدة",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "تنبيه لما رسالة توصل من بنك أو محفظة مش في قايمة المصادر المعروفة"
             }
         )
     }
@@ -164,6 +178,51 @@ object NotificationHelper {
             .build()
 
         NotificationManagerCompat.from(context).notify("upcoming_$name".hashCode(), notification)
+    }
+
+    /**
+     * تنبيه "لقينا مصدر جديد": رسالة اتسجلت لكن مرسلها مش في سجل المصادر
+     * المعروف (TransactionSources) ولا في قواعد المستخدم المفعّلة. الهدف
+     * إن المستخدم يعرف إن دقة القراءة لبنك ده مش مضمونة، ويقدر يفتح "قواعد
+     * الرسائل" ويضيف قاعدة له بنفسه لو حابب.
+     *
+     * بينادى مرة واحدة بس لكل مرسل (شوف UnknownSourceTracker) عشان ميتكررش
+     * الإشعار مع كل رسالة جديدة من نفس البنك غير المتعرّف عليه.
+     */
+    fun showUnknownSourceNotification(context: Context, sender: String) {
+        if (!hasNotificationPermission(context)) return
+        ensureChannels(context)
+
+        val openAppIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        val pendingIntent = openAppIntent?.let {
+            PendingIntent.getActivity(
+                context,
+                sender.hashCode(),
+                it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_UNKNOWN_SOURCE)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("لقينا مصدر جديد 🏦")
+            .setContentText("رسالة من \"$sender\" اتسجّلت لكن مش من بنك متعرّف عليه رسميًا")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "رسالة من \"$sender\" اتسجّلت لكن مش من بنك متعرّف عليه رسميًا، فالمبلغ " +
+                        "أو اسم الجهة ممكن يكونوا مش دقيقين. افتح \"قواعد الرسائل\" من الإعدادات " +
+                        "وضيفله قاعدة عشان الدقة تبقى أعلى في المرات الجاية."
+                )
+            )
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+
+        pendingIntent?.let { builder.setContentIntent(it) }
+
+        NotificationManagerCompat.from(context).notify(
+            ("unknown_source_$sender").hashCode(),
+            builder.build()
+        )
     }
 
     private fun hasNotificationPermission(context: Context): Boolean {
