@@ -79,6 +79,37 @@ private val DarkColors = darkColorScheme(
     inverseOnSurface = Slate900
 )
 
+private val AmoledColors = darkColorScheme(
+    primary = Emerald300,
+    onPrimary = Emerald900,
+    primaryContainer = Emerald700,
+    onPrimaryContainer = Emerald100,
+    secondary = Ocean300,
+    onSecondary = Ocean900,
+    secondaryContainer = Color(0xFF16405C),
+    onSecondaryContainer = Ocean100,
+    tertiary = Amber300,
+    onTertiary = Color(0xFF2E1A00),
+    tertiaryContainer = Color(0xFF6B3E00),
+    onTertiaryContainer = Amber100,
+    error = Coral400,
+    onError = Coral900,
+    errorContainer = Color(0xFF7A2119),
+    onErrorContainer = Coral100,
+    background = Color(0xFF000000),
+    onBackground = Slate200,
+    surface = Color(0xFF000000),
+    onSurface = Slate200,
+    surfaceVariant = Color(0xFF121212),
+    onSurfaceVariant = Slate400,
+    surfaceContainer = Color(0xFF121212),
+    surfaceContainerHigh = Color(0xFF1E1E1E),
+    outline = Color(0xFF4A5155),
+    outlineVariant = Color(0xFF1E1E1E),
+    inverseSurface = Slate200,
+    inverseOnSurface = Color(0xFF000000)
+)
+
 /**
  * ألوان المعنى المالي (دخل/مصروف/تحويل/تحذير) + لوحة الرسوم. مش جزء من
  * ColorScheme بتاع Material، فبتتمرّر كـ CompositionLocal عشان أي شاشة تاخدها
@@ -121,6 +152,7 @@ val MaterialTheme.finance: FinanceColors
 fun ExpenseTrackerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
+    amoledMode: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -128,6 +160,7 @@ fun ExpenseTrackerTheme(
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
+        darkTheme && amoledMode -> AmoledColors
         darkTheme -> DarkColors
         else -> LightColors
     }

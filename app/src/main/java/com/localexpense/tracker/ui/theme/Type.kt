@@ -6,15 +6,20 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.ui.text.font.Font
+import com.localexpense.tracker.R
+
 /**
- * سلّم خطوط واحد للتطبيق. الخط نفسه هو خط النظام (FontFamily.Default) عشان
- * الحروف العربية تفضل بشكلها الطبيعي على كل جهاز ومن غير إضافة ملفات خطوط —
- * اللي بيتظبط هنا هو المقاسات والأوزان والتباعد، وده اللي بيعمل الفرق فعلاً.
- *
- * الأرقام والمبالغ بتستخدم displayMedium/headlineSmall بوزن ثقيل: المبلغ هو
- * أهم معلومة في أي شاشة مالية.
+ * سلّم خطوط واحد للتطبيق. تم استخدام خط Cairo ليعطي جمالية فائقة للحروف العربية.
  */
-private val Default = FontFamily.Default
+private val CairoFontFamily = FontFamily(
+    Font(R.font.cairo_regular, FontWeight.Normal),
+    Font(R.font.cairo_medium, FontWeight.Medium),
+    Font(R.font.cairo_semibold, FontWeight.SemiBold),
+    Font(R.font.cairo_bold, FontWeight.Bold)
+)
+
+private val Default = CairoFontFamily
 
 val AppTypography = Typography(
     displayMedium = TextStyle(

@@ -618,4 +618,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         settings.useDynamicColor = enabled
         _useDynamicColor.value = enabled
     }
+
+    private val _useAmoledMode = MutableStateFlow(settings.useAmoledMode)
+    val useAmoledMode: StateFlow<Boolean> = _useAmoledMode.asStateFlow()
+
+    fun setUseAmoledMode(enabled: Boolean) {
+        settings.useAmoledMode = enabled
+        _useAmoledMode.value = enabled
+    }
 }

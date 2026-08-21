@@ -59,6 +59,11 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_DYNAMIC_COLOR, false)
         set(value) { prefs.edit().putBoolean(KEY_DYNAMIC_COLOR, value).apply() }
 
+    /** استخدام وضع AMOLED الداكن (الخلفية سوداء بالكامل). */
+    var useAmoledMode: Boolean
+        get() = prefs.getBoolean(KEY_AMOLED_MODE, false)
+        set(value) { prefs.edit().putBoolean(KEY_AMOLED_MODE, value).apply() }
+
     /** مدى استيراد الرسائل لما تسحب الرئيسية لتحت (المزامنة السريعة). */
     var smsSyncRange: SmsSyncRange
         get() = SmsSyncRange.fromStorageKey(prefs.getString(KEY_SYNC_RANGE, null))
@@ -113,6 +118,7 @@ class AppSettings(context: Context) {
         const val KEY_ANOMALY = "anomaly_multiplier"
         const val KEY_LAST_BACKUP = "last_backup_at"
         const val KEY_DYNAMIC_COLOR = "use_dynamic_color"
+        const val KEY_AMOLED_MODE = "use_amoled_mode"
         const val KEY_SYNC_RANGE = "sms_sync_range"
         const val KEY_SYNC_YEAR = "sms_sync_year"
     }

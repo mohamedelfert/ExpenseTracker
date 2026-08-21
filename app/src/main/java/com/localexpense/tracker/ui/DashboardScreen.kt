@@ -32,8 +32,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -76,6 +80,9 @@ fun DashboardScreen(
     val recent by viewModel.recentTransactions.collectAsStateWithLifecycle()
     val monthOffset by finance.monthOffset.collectAsStateWithLifecycle()
     val dateFormat = SimpleDateFormat("dd MMM", Locale("ar"))
+
+    var selectedCategoryIndex by remember(monthOffset) { mutableStateOf<Int?>(null) }
+    var selectedDayIndex by remember(monthOffset) { mutableStateOf<Int?>(null) }
 
     Scaffold(
         topBar = {
@@ -204,8 +211,27 @@ fun DashboardScreen(
                         SectionHeader("الصرف اليومي")
                         DailyBarChart(
                             values = daily.map { it.total },
-                            modifier = Modifier.fillMaxWidth().height(90.dp).padding(horizontal = 16.dp)
+                            modifier = Modifier.fillMaxWidth().height(90.dp).padding(horizontal = 16.dp),
+                            selectedIndex = selectedDayIndex,
+                            onBarSelected = { selectedDayIndex = it }
                         )
+                        selectedDayIndex?.let { index ->
+                            daily.getOrNull(index)?.let { dayTotal ->
+                                val dateFormatted = runCatching {
+                                    val inputFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                                    val outputFormat = SimpleDateFormat("d MMMM", Locale("ar"))
+                                    val date = inputFormat.parse(dayTotal.day)
+                                    outputFormat.format(date)
+                                }.getOrDefault(dayTotal.day)
+                                Text(
+                                    text = "صرف يوم $dateFormatted: ${formatMinor(dayTotal.total)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -236,28 +262,63 @@ fun DashboardScreen(
             if (ctx.categoryTotals.isEmpty()) {
                 item { EmptyState("لسه مفيش مصروفات الشهر ده", "الحركات بتظهر تلقائيًا لما نلقطها من رسائل البنك.") }
             } else {
+                val categories = ctx.categoryTotals.toList().sortedByDescending { it.second }
                 item {
                     Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
                         DonutChart(
-                            slices = ctx.categoryTotals.toList().sortedByDescending { it.second },
-                            modifier = Modifier.size(150.dp)
+                            slices = categories,
+                            modifier = Modifier.size(150.dp),
+                            selectedIndex = selectedCategoryIndex,
+                            onSliceSelected = { selectedCategoryIndex = it }
                         )
-                        Text(
-                            formatMinor(ctx.summary.netSpentMinor, withDecimals = false),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            val selectedCategory = selectedCategoryIndex?.let { categories.getOrNull(it) }
+                            if (selectedCategory != null) {
+                                Text(
+                                    selectedCategory.first,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    formatMinor(selectedCategory.second, withDecimals = false),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                Text(
+                                    "إجمالي المصروفات",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    formatMinor(ctx.summary.netSpentMinor, withDecimals = false),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
-                val categories = ctx.categoryTotals.toList().sortedByDescending { it.second }
                 items(categories.size) { index ->
                     val (name, total) = categories[index]
                     val palette = chartPalette()
+                    val isSelected = selectedCategoryIndex == index
+                    val isAnySelected = selectedCategoryIndex != null
+                    val rowAlpha = if (!isAnySelected || isSelected) 1f else 0.5f
+                    val rowBg = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f) else Color.Transparent
+                    
                     AmountRow(
                         label = name,
                         amountMinor = total,
                         leading = { IconBadge(icon = getCategoryIcon(name), tint = palette[index % palette.size], size = 32.dp) },
-                        trailingText = "${(total * 100 / ctx.summary.netSpentMinor.coerceAtLeast(1)).toInt()}%"
+                        trailingText = "${(total * 100 / ctx.summary.netSpentMinor.coerceAtLeast(1)).toInt()}%",
+                        modifier = Modifier
+                            .clip(MaterialTheme.shapes.small)
+                            .background(rowBg)
+                            .alpha(rowAlpha),
+                        onClick = {
+                            selectedCategoryIndex = if (selectedCategoryIndex == index) null else index
+                        }
                     )
                 }
             }

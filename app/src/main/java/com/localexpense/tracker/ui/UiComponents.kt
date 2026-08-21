@@ -269,20 +269,24 @@ fun BudgetBar(progress: BudgetProgress, label: String, modifier: Modifier = Modi
  * ومقياس واحد، مش محتاجة 300 كيلوبايت مكتبة.
  */
 @Composable
-fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: Color? = null) {
+fun DailyBarChart(
+    values: List<Long>,
+    modifier: Modifier = Modifier,
+    barColor: Color? = null,
+    selectedIndex: Int?,
+    onBarSelected: (Int?) -> Unit
+) {
     if (values.isEmpty()) return
     val color = barColor ?: chartPalette().first()
     val max = (values.maxOrNull() ?: 1L).coerceAtLeast(1L)
     
-    var selectedIndex by remember { mutableStateOf<Int?>(null) }
-    
-    Canvas(modifier = modifier.pointerInput(values) {
+    Canvas(modifier = modifier.pointerInput(values, selectedIndex) {
         detectTapGestures { offset ->
             val gap = 2f
             val barWidth = ((size.width - gap * (values.size - 1)) / values.size).coerceAtLeast(1f)
             val index = (offset.x / (barWidth + gap)).toInt()
             if (index in values.indices) {
-                selectedIndex = index
+                onBarSelected(if (selectedIndex == index) null else index)
             }
         }
     }) {
@@ -324,14 +328,17 @@ fun DailyBarChart(values: List<Long>, modifier: Modifier = Modifier, barColor: C
 }
 
 @Composable
-fun DonutChart(slices: List<Pair<String, Long>>, modifier: Modifier = Modifier) {
+fun DonutChart(
+    slices: List<Pair<String, Long>>,
+    modifier: Modifier = Modifier,
+    selectedIndex: Int?,
+    onSliceSelected: (Int?) -> Unit
+) {
     if (slices.isEmpty()) return
     val total = slices.sumOf { it.second }.coerceAtLeast(1L)
     val palette = chartPalette()
     
-    var selectedIndex by remember { mutableStateOf<Int?>(null) }
-    
-    Canvas(modifier = modifier.pointerInput(slices) {
+    Canvas(modifier = modifier.pointerInput(slices, selectedIndex) {
         detectTapGestures { offset ->
             val center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
             val angle = (Math.toDegrees(Math.atan2((offset.y - center.y).toDouble(), (offset.x - center.x).toDouble())) + 360) % 360
@@ -342,7 +349,7 @@ fun DonutChart(slices: List<Pair<String, Long>>, modifier: Modifier = Modifier) 
             for (i in slices.indices) {
                 val sweep = (slices[i].second.toDouble() / total * 360.0).toFloat()
                 if (adjustedAngle >= currentAngle && adjustedAngle < currentAngle + sweep) {
-                    selectedIndex = if (selectedIndex == i) null else i
+                    onSliceSelected(if (selectedIndex == i) null else i)
                     break
                 }
                 currentAngle += sweep

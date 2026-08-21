@@ -254,7 +254,8 @@ class MainActivity : FragmentActivity() {
         setContent {
             val viewModelForTheme: MainViewModel = viewModel()
             val dynamicThemeEnabled = viewModelForTheme.useDynamicColor.collectAsState(initial = false).value
-            ExpenseTrackerTheme(dynamicColor = dynamicThemeEnabled) {
+            val amoledThemeEnabled = viewModelForTheme.useAmoledMode.collectAsState(initial = false).value
+            ExpenseTrackerTheme(dynamicColor = dynamicThemeEnabled, amoledMode = amoledThemeEnabled) {
                 // كل الـ ViewModels على مستوى الـ Activity: كده محرّك
                 // التحليلات نسخة واحدة لكل الشاشات (راجع التعليق في AppNavHost).
                 val viewModel: MainViewModel = viewModel()

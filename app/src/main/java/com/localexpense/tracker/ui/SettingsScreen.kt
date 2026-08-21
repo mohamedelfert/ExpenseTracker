@@ -256,6 +256,26 @@ fun SettingsScreen(
                     )
                 }
             }
+            item {
+                val useAmoledMode by viewModel.useAmoledMode.collectAsStateWithLifecycle()
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("وضع AMOLED الداكن", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "خلفية سوداء بالكامل لتوفير البطارية في المظهر الداكن",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = useAmoledMode,
+                        onCheckedChange = { viewModel.setUseAmoledMode(it) }
+                    )
+                }
+            }
 
             // ===== مزامنة الرسائل (سحب الرئيسية لتحت) =====
             item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }

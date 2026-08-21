@@ -188,9 +188,6 @@ fun HomeScreen(
                         IconButton(onClick = { showArchiveDialog = true }) {
                             Icon(Icons.Default.Unarchive, contentDescription = "الأرشيف")
                         }
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Default.Tune, contentDescription = "الإعدادات")
-                        }
                     }
                 )
             }
