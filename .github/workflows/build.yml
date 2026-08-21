@@ -2,7 +2,9 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
   workflow_dispatch: {}
 
 jobs:
@@ -15,7 +17,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -24,6 +26,23 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.13
+
+      # بيشغّل كل تستات الـ JVM (money/, util/, data/, sources/, domain/) قبل
+      # أي بناء. لو أي تست فشل، الـ job يفشل هنا ومفيش APK بيتبنى أو يتـ upload —
+      # القصد إن أي كسر في منطق مالي أو migration يتلقط جوه الـ PR نفسه، مش
+      # بعد ما يوصل main.
+      - name: Run unit tests
+        run: gradle testPlayDebugUnitTest testDirectDebugUnitTest --no-daemon
+
+      # بيترفع تقرير التستات كـ artifact حتى لو فشلوا، عشان تقدر تفتح الـ HTML
+      # report وتشوف بالظبط أي تست فشل وليه من غير ما تشغّل الحاجة محليًا.
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
 
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
