@@ -21,7 +21,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -36,6 +38,7 @@ import com.localexpense.tracker.security.BiometricAuth
 @Composable
 fun LockScreen(onUnlocked: () -> Unit) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val biometricEnabled = AppLock.isBiometricEnabled(context) && BiometricAuth.isAvailable(context)
@@ -93,6 +96,7 @@ fun LockScreen(onUnlocked: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         Button(
             onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 if (AppLock.verifyPin(context, pin)) onUnlocked() else error = "الرقم غلط"
             },
             modifier = Modifier.fillMaxWidth()
@@ -100,7 +104,10 @@ fun LockScreen(onUnlocked: () -> Unit) {
 
         if (biometricEnabled) {
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = { tryBiometric() }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                tryBiometric()
+            }, modifier = Modifier.fillMaxWidth()) {
                 Text("استخدم البصمة")
             }
         }

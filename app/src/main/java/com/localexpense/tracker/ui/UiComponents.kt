@@ -2,7 +2,9 @@ package com.localexpense.tracker.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +25,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -31,6 +34,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -111,9 +116,11 @@ fun SoftCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
     Card(
         modifier = modifier
             .shadow(elevation = 3.dp, shape = shape, ambientColor = Color.Black.copy(alpha = 0.10f), spotColor = Color.Black.copy(alpha = 0.10f))
+            .border(width = 0.6.dp, color = borderColor, shape = shape)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it },
         colors = CardDefaults.cardColors(containerColor = containerColor),
         shape = shape
@@ -507,4 +514,20 @@ fun Modifier.shimmerEffect(): Modifier = composed {
             end = androidx.compose.ui.geometry.Offset(startOffsetX + size.width.toFloat(), size.height.toFloat())
         )
     ).onGloballyPositioned { size = it.size }
+}
+
+/**
+ * اختصار يجمع الضغط والاهتزاز في Modifier واحد — ضع `hapticClick { }` بدل
+ * `.clickable { }` في أي زر أو عنصر تريد له اهتزازاً خفيفاً عند الضغط.
+ */
+fun Modifier.hapticClick(onClick: () -> Unit): Modifier = composed {
+    val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    clickable(
+        interactionSource = interactionSource,
+        indication = androidx.compose.material.ripple.rememberRipple()
+    ) {
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        onClick()
+    }
 }
