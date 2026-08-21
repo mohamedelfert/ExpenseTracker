@@ -199,6 +199,17 @@ object SmsParser {
         return match.groupValues.getOrNull(1)?.let { parseAmountMinor(it) }
     }
 
+    /**
+     * كلمات لو ظهرت في أول النص المستخرج، بتدل إن ده مش اسم جهة فعلي — جزء
+     * من جملة عن الحساب/الكارت/التاريخ اتقرا غلط بالغلط لأنه جه بعد حرف جر
+     * زي "من". القايمة دي بتتوسّع مع الوقت كل ما ظهر نمط جديد من رسائل حقيقية.
+     */
+    private val merchantBlacklist = listOf(
+        "بطاقة", "حساب", "رقم", "المباشر", "الائتماني", "card", "account",
+        "فرع", "تاريخ", "التاريخ", "وقت", "الوقت", "رصيد", "الرصيد",
+        "خدمة", "بيانات", "رمز", "كود"
+    )
+
     private fun extractMerchant(body: String): String {
         // عمليات السحب النقدي من الـ ATM
         if (body.contains("سحب", true) || body.contains("ATM", true) || body.contains("ماكينة", true)) {
@@ -214,17 +225,26 @@ object SmsParser {
             }
         }
 
-        // الشراء لدى التُّجار (البنوك المصرية: "لدى", "في", "at", "عند", "من")
-        val merchantRegex = Regex("""(?:لدى|في|at|عند|من)\s+([A-Za-z0-9\u0600-\u06FF ._*-]{3,30})""", RegexOption.IGNORE_CASE)
-        val match = merchantRegex.find(body)
+        // الشراء لدى التُّجار (البنوك المصرية: "لدى", "في", "at", "عند", "من").
+        //
+        // مجموعة الالتقاط فيها negative lookahead بتوقف الالتقاط الجشع
+        // (greedy) قبل أي تكرار تاني لنفس الكلمات الدالة (لدى/في/at/عند/من)،
+        // مش بس عند 30 حرف أو نص جديد. من غيرها، رسالة زي "خصم من حساب رقم
+        // 123 لدى كارفور" كانت هتخلي التطابق الأول يبلع "حساب رقم 123 لدى
+        // كارفور" كله كمجموعة واحدة (لأن كل الحروف دي مسموحة في الفئة)،
+        // فيتقفل عليها كـ blacklist من غير ما نوصل لـ "كارفور" اللي بعدها.
+        // بوجود الـ lookahead، التطابق الأول بيوقف عند حدود "لدى" الجديدة،
+        // فـ findAll بتلاقي تطابق تاني منفصل يبدأ من "لدى" ويوصلنا للجهة الصح.
+        val merchantRegex = Regex(
+            """(?:لدى|في|at|عند|من)\s+((?:(?!لدى|في|at|عند|من)[A-Za-z0-9\u0600-\u06FF ._*-]){3,30})""",
+            RegexOption.IGNORE_CASE
+        )
+        val validCandidate = merchantRegex.findAll(body)
+            .map { it.groupValues[1].trim() }
+            .firstOrNull { extracted -> merchantBlacklist.none { extracted.startsWith(it, ignoreCase = true) } }
 
-        if (match != null) {
-            var extracted = match.groupValues[1].trim()
-            val blacklist = listOf("بطاقة", "حساب", "رقم", "المباشر", "الائتماني", "card", "account")
-            if (blacklist.none { extracted.startsWith(it, ignoreCase = true) }) {
-                extracted = extracted.split("\n")[0].split(".")[0]
-                return extracted.take(25)
-            }
+        if (validCandidate != null) {
+            return validCandidate.split("\n")[0].split(".")[0].trim().take(25)
         }
 
         return "جهة غير محددة"

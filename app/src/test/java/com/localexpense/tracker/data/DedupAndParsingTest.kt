@@ -98,6 +98,31 @@ class DedupAndParsingTest {
     }
 
     @Test
+    fun `merchant extraction skips a blacklisted preposition match and finds the real one after it`() {
+        // "من" بتيجي هنا قبل "لدى" في النص - المفروض التحليل يتخطى "من حساب"
+        // (بلاكليست) ويوصل لـ "كارفور" اللي هي الجهة الحقيقية، مش يوقف عند
+        // أول تطابق ويرجع "جهة غير محددة".
+        val expense = SmsParser.parseSms(
+            sender = "CIB",
+            body = "تم خصم 250 EGP من حساب رقم 1234 لدى كارفور مدينة نصر",
+            timestamp = 1_700_000_000_000
+        )
+        requireNotNull(expense)
+        assertEquals("كارفور مدينة نصر", expense.merchant)
+    }
+
+    @Test
+    fun `merchant extraction falls back to unspecified when every candidate is blacklisted`() {
+        val expense = SmsParser.parseSms(
+            sender = "CIB",
+            body = "تم خصم 250 EGP من حساب رقم 1234 في فرع مدينة نصر",
+            timestamp = 1_700_000_000_000
+        )
+        requireNotNull(expense)
+        assertEquals("جهة غير محددة", expense.merchant)
+    }
+
+    @Test
     fun `signed amount excludes transfers from any total`() {
         val base = Expense(
             amountMinor = 10_000, merchant = "x", bankName = "y",
