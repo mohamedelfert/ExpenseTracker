@@ -21,12 +21,14 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
+import com.localexpense.tracker.data.AppSettings
 import com.localexpense.tracker.security.AppLock
 import com.localexpense.tracker.util.CrashLog
 import com.localexpense.tracker.receiver.ExpenseNotificationListener
 import com.localexpense.tracker.ui.AppNavHost
 import com.localexpense.tracker.ui.CrashReportScreen
 import com.localexpense.tracker.ui.LockScreen
+import com.localexpense.tracker.ui.OnboardingScreen
 import com.localexpense.tracker.ui.RestrictedSettingsDialog
 import com.localexpense.tracker.ui.theme.ExpenseTrackerTheme
 import com.localexpense.tracker.viewmodel.FinanceViewModel
@@ -64,6 +66,9 @@ class MainActivity : FragmentActivity() {
     /** القفل (المرحلة 16): مقفول من البداية لو المستخدم مفعّل رقم سري. */
     private var locked = mutableStateOf(false)
     private var backgroundedAt = 0L
+
+    /** شاشات الترحيب — بتظهر مرة واحدة بس أول ما التطبيق يتفتح. */
+    private var onboardingDone = mutableStateOf(false)
 
     /** بيتفتح لوحده لو رجع المستخدم من الإعدادات والإذن لسه محجوب. */
     private var showRestrictedHelp = mutableStateOf(false)
@@ -250,6 +255,7 @@ class MainActivity : FragmentActivity() {
 
         refreshPermissionState()
         locked.value = AppLock.isLockEnabled(this)
+        onboardingDone.value = AppSettings(this).hasCompletedOnboarding
 
         setContent {
             val viewModelForTheme: MainViewModel = viewModel()
@@ -265,6 +271,7 @@ class MainActivity : FragmentActivity() {
                 val smsGranted by smsPermissionGranted
                 val notifGranted by notificationAccessGranted
                 val isLocked by locked
+                val isOnboarded by onboardingDone
                 val useDynamic by viewModel.useDynamicColor.collectAsState(initial = false)
 
                 // إعادة فحص حالة الإذن، وفحص هل لازم نقفل تاني بعد الرجوع
@@ -299,7 +306,14 @@ class MainActivity : FragmentActivity() {
                     )
                 }
 
-                if (isLocked) {
+                if (!isOnboarded) {
+                    OnboardingScreen(
+                        onFinish = {
+                            AppSettings(this@MainActivity).hasCompletedOnboarding = true
+                            onboardingDone.value = true
+                        }
+                    )
+                } else if (isLocked) {
                     LockScreen(onUnlocked = { locked.value = false })
                 } else {
                     AppNavHost(
