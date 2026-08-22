@@ -237,7 +237,7 @@ fun TransactionsScreen(
                                     leading = { 
                                         IconBadge(
                                             icon = getCategoryIcon(expense.categoryName), 
-                                            tint = MaterialTheme.colorScheme.primary, 
+                                            tint = getCategoryColor(expense.categoryName), 
                                             size = 36.dp
                                         ) 
                                     },

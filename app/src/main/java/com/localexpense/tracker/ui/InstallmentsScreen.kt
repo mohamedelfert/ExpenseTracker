@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -102,6 +103,8 @@ fun InstallmentsScreen(plans: PlansViewModel, onBack: () -> Unit) {
                     items(installments, key = { it.id }) { item ->
                         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconBadge(icon = getCategoryIcon(item.categoryName), tint = getCategoryColor(item.categoryName), size = 36.dp)
+                                Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(item.title, style = MaterialTheme.typography.bodyLarge)
                                     Text(

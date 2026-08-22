@@ -1,5 +1,6 @@
 package com.localexpense.tracker.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -46,11 +49,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import com.localexpense.tracker.money.formatMinor
+import com.localexpense.tracker.ui.theme.finance
 import com.localexpense.tracker.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -133,16 +138,32 @@ fun TransactionDetailScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text(
-                        formatMinor(item.amountMinor, item.currency),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { showAmountDialog = true }
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text("${typeLabel(item.type)} • ${sourceLabel(item.source)}", style = MaterialTheme.typography.labelLarge)
-                    if (item.isVerified) {
-                        Text("✔ مؤكدة", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconBadge(icon = getCategoryIcon(item.categoryName), tint = getCategoryColor(item.categoryName), size = 40.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                formatMinor(item.amountMinor, item.currency),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable { showAmountDialog = true }
+                            )
+                            Text("${typeLabel(item.type)} • ${sourceLabel(item.source)}", style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                    if (!item.isVerified) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .background(MaterialTheme.finance.warning.copy(alpha = 0.14f))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Icon(Icons.Default.WarningAmber, contentDescription = null, tint = MaterialTheme.finance.warning, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("غير مؤكدة — راجع الجهة والمبلغ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.finance.warning)
+                        }
                     }
                 }
             }

@@ -272,6 +272,60 @@ fun BudgetBar(progress: BudgetProgress, label: String, modifier: Modifier = Modi
 }
 
 /**
+ * مؤشر ميزانية دائري مضغوط — بديل بصري لـ [BudgetBar] لما يكون عندنا كذا
+ * فئة جنب بعض (صف أفقي في الداشبورد مثلًا) وعايزين نقارن بنظرة واحدة من
+ * غير ما ناخد عرض الشاشة كله زي الشريط الأفقي. نفس منطق الرسم بتاع
+ * [DonutChart] (قوس Canvas) بس لفئة واحدة.
+ */
+@Composable
+fun BudgetRing(
+    progress: BudgetProgress,
+    label: String,
+    modifier: Modifier = Modifier,
+    ringColor: Color = budgetColor(progress.state),
+    size: androidx.compose.ui.unit.Dp = 56.dp
+) {
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    Column(
+        modifier = modifier.width(size + 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(size)) {
+                val stroke = size.toPx() * 0.16f
+                drawArc(
+                    color = trackColor,
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                )
+                drawArc(
+                    color = ringColor,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress.ratio.toFloat().coerceIn(0f, 1f),
+                    useCenter = false,
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                )
+            }
+            Text(
+                "${progress.percentUsed}%",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
  * رسم أعمدة بسيط للصرف اليومي. Canvas بدل مكتبة رسوم بيانية: أعمدة رأسية
  * ومقياس واحد، مش محتاجة 300 كيلوبايت مكتبة.
  */

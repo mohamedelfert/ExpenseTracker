@@ -2,7 +2,10 @@ package com.localexpense.tracker.ui
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import kotlin.math.abs
 
 fun getCategoryIcon(name: String): ImageVector {
     val lower = name.lowercase()
@@ -25,4 +28,22 @@ fun getCategoryIcon(name: String): ImageVector {
         lower.contains("أطفال") || lower.contains("عائلة") -> Icons.Default.FamilyRestroom
         else -> Icons.Default.Category
     }
+}
+
+/**
+ * لون ثابت لكل فئة بالاسم — نفس الفئة تاخد نفس اللون في كل شاشة (المعاملات،
+ * الميزانيات، ...) بدل ما يبقى لون واحد لكل الفئات أو لون بيتغيّر حسب
+ * الترتيب في القايمة. بنستخدم hash الاسم عشان نختار من لوحة الرسوم البيانية
+ * الموجودة أصلاً في الثيم (بتفرق نهاري/ليلي زي أي لون تاني في التطبيق).
+ *
+ * ملحوظة: شاشة الداشبورد بتستخدم `palette[index % size]` بالترتيب لأنها
+ * بتربط لون كل فئة بشريحة الدونات المقابلة لها — مينفعش نستبدلها بده هنا
+ * لأنها هتفصل بين لون الشريحة ولون الأيقونة في نفس الشاشة.
+ */
+@Composable
+fun getCategoryColor(name: String): Color {
+    val palette = chartPalette()
+    if (palette.isEmpty()) return Color.Gray
+    val index = abs(name.hashCode()) % palette.size
+    return palette[index]
 }

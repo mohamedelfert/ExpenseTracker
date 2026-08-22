@@ -654,35 +654,39 @@ private fun TransactionRow(expense: Expense, timeLabel: String, onClick: () -> U
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(expense.merchant, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
-                Spacer(Modifier.width(8.dp))
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shape = MaterialTheme.shapes.extraSmall
-                ) {
-                    Text(
-                        expense.categoryName,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(icon = getCategoryIcon(expense.categoryName), tint = getCategoryColor(expense.categoryName), size = 36.dp)
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(expense.merchant, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                    Spacer(Modifier.width(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {
+                        Text(
+                            expense.categoryName,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    if (!expense.isVerified && expense.source != com.localexpense.tracker.data.TransactionSource.MANUAL) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.finance.warning)
+                        )
+                    }
                 }
-                if (!expense.isVerified && expense.source != com.localexpense.tracker.data.TransactionSource.MANUAL) {
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.finance.warning)
-                    )
-                }
+                Text(
+                    timeLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            Text(
-                timeLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
         Text(
             (if (isCredit) "+" else if (expense.type == TransactionType.TRANSFER) "" else "-") +

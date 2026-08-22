@@ -27,6 +27,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -190,7 +191,14 @@ fun AddExpenseScreen(
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("الفئة") },
-                            leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                            leadingIcon = {
+                                val currentCategory = selectedCategory?.name
+                                Icon(
+                                    if (currentCategory != null) getCategoryIcon(currentCategory) else Icons.Default.CreditCard,
+                                    contentDescription = null,
+                                    tint = if (currentCategory != null) getCategoryColor(currentCategory) else LocalContentColor.current
+                                )
+                            },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
@@ -198,6 +206,7 @@ fun AddExpenseScreen(
                             categories.forEach { category ->
                                 DropdownMenuItem(
                                     text = { Text(category.name) },
+                                    leadingIcon = { IconBadge(icon = getCategoryIcon(category.name), tint = getCategoryColor(category.name), size = 28.dp) },
                                     onClick = {
                                         selectedCategory = category
                                         expanded = false

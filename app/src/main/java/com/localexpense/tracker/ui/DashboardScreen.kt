@@ -1,6 +1,8 @@
 package com.localexpense.tracker.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -250,9 +252,24 @@ fun DashboardScreen(
             if (ctx.overallBudgetMinor > 0) {
                 item { BudgetBar(ctx.overallBudget, "الميزانية الكلية") }
             }
-            items(ctx.categoryBudgetProgress.take(4).size) { index ->
-                val (name, progress) = ctx.categoryBudgetProgress[index]
-                BudgetBar(progress, name)
+            if (ctx.categoryBudgetProgress.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        ctx.categoryBudgetProgress.take(4).forEach { (name, progress) ->
+                            BudgetRing(
+                                progress = progress,
+                                label = name,
+                                ringColor = getCategoryColor(name)
+                            )
+                        }
+                    }
+                }
             }
             if (ctx.overallBudgetMinor == 0L && ctx.categoryBudgetProgress.isEmpty()) {
                 item { EmptyState("مفيش ميزانيات محددة", "حدد ميزانية شهرية عشان نقدر نحذّرك قبل ما تتخطاها.") }

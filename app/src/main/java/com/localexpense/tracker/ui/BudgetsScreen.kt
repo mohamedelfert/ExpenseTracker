@@ -106,7 +106,7 @@ fun BudgetsScreen(
                             Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconBadge(icon = getCategoryIcon(category.name), tint = MaterialTheme.colorScheme.primary, size = 32.dp)
+                            IconBadge(icon = getCategoryIcon(category.name), tint = getCategoryColor(category.name), size = 32.dp)
                             Spacer(Modifier.width(12.dp))
                             Text(category.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                             TextButton(onClick = { editingCategory = category.name }) {

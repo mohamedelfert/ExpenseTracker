@@ -180,6 +180,7 @@ fun MerchantDetailScreen(
                     AmountRow(
                         label = expense.categoryName,
                         amountMinor = expense.amountMinor,
+                        leading = { IconBadge(icon = getCategoryIcon(expense.categoryName), tint = getCategoryColor(expense.categoryName), size = 32.dp) },
                         trailingText = typeLabel(expense.type),
                         onClick = { onOpenTransaction(expense.id) }
                     )

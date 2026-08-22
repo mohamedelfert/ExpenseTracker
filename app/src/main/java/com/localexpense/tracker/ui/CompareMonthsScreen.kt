@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
@@ -87,13 +88,23 @@ fun CompareMonthsScreen(finance: FinanceViewModel, onBack: () -> Unit) {
             comparison.biggestIncrease?.let { change ->
                 item {
                     SectionHeader("أكبر زيادة")
-                    AmountRow(change.categoryName, change.deltaMinor, trailingText = "من ${formatMinor(change.previousMinor)}")
+                    AmountRow(
+                        change.categoryName,
+                        change.deltaMinor,
+                        leading = { IconBadge(icon = getCategoryIcon(change.categoryName), tint = getCategoryColor(change.categoryName), size = 32.dp) },
+                        trailingText = "من ${formatMinor(change.previousMinor)}"
+                    )
                 }
             }
             comparison.biggestDecrease?.let { change ->
                 item {
                     SectionHeader("أكبر نقصان")
-                    AmountRow(change.categoryName, change.deltaMinor, trailingText = "من ${formatMinor(change.previousMinor)}")
+                    AmountRow(
+                        change.categoryName,
+                        change.deltaMinor,
+                        leading = { IconBadge(icon = getCategoryIcon(change.categoryName), tint = getCategoryColor(change.categoryName), size = 32.dp) },
+                        trailingText = "من ${formatMinor(change.previousMinor)}"
+                    )
                 }
             }
 
@@ -108,6 +119,8 @@ fun CompareMonthsScreen(finance: FinanceViewModel, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                     ) {
+                        IconBadge(icon = getCategoryIcon(change.categoryName), tint = getCategoryColor(change.categoryName), size = 30.dp)
+                        Spacer(Modifier.width(10.dp))
                         Text(change.categoryName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                         Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
                             Text(
