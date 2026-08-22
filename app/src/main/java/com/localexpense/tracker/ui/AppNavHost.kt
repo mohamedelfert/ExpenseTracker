@@ -148,6 +148,7 @@ fun AppNavHost(
                 onOpenInsights = { navController.navigate(Routes.INSIGHTS) },
                 onOpenReports = { navController.navigate(Routes.REPORTS) },
                 onOpenAssistant = { navController.navigate(Routes.ASSISTANT) },
+                onOpenAddExpense = { navController.navigate(Routes.ADD_EXPENSE) },
                 onOpenTransaction = { id -> navController.navigate("${Routes.TRANSACTION_DETAIL}/$id") }
             )
         }

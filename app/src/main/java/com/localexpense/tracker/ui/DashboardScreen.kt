@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowUpward
@@ -75,6 +76,7 @@ fun DashboardScreen(
     onOpenInsights: () -> Unit = {},
     onOpenReports: () -> Unit = {},
     onOpenAssistant: () -> Unit = {},
+    onOpenAddExpense: () -> Unit = {},
     onOpenTransaction: (Long) -> Unit = {}
 ) {
     val context by finance.financialContext.collectAsStateWithLifecycle()
@@ -278,7 +280,15 @@ fun DashboardScreen(
             // ===== الفئات =====
             item { SectionHeader("حسب الفئة") }
             if (ctx.categoryTotals.isEmpty()) {
-                item { EmptyState("لسه مفيش مصروفات الشهر ده", "الحركات بتظهر تلقائيًا لما نلقطها من رسائل البنك.") }
+                item {
+                    EmptyState(
+                        title = "لسه مفيش مصروفات الشهر ده",
+                        hint = "الحركات بتظهر تلقائيًا لما نلقطها من رسائل البنك، أو تقدر تضيف مصروف بنفسك.",
+                        icon = Icons.Filled.Add,
+                        actionLabel = "أضف مصروف",
+                        onAction = onOpenAddExpense
+                    )
+                }
             } else {
                 val categories = ctx.categoryTotals.toList().sortedByDescending { it.second }
                 item {

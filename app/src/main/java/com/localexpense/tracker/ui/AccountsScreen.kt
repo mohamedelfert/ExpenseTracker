@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -99,7 +100,13 @@ fun AccountsScreen(
             HorizontalDivider()
 
             if (accounts.isEmpty()) {
-                EmptyState("مفيش حسابات", "أضف بنك أو محفظة أو كاش لو حابب تتابع أرصدتها.")
+                EmptyState(
+                    title = "مفيش حسابات",
+                    hint = "أضف بنك أو محفظة أو كاش لو حابب تتابع أرصدتها.",
+                    icon = Icons.Filled.AccountBalanceWallet,
+                    actionLabel = "أضف حساب",
+                    onAction = { editing = null; showEditor = true }
+                )
             } else {
                 LazyColumn(Modifier.padding(top = 8.dp)) {
                     items(accounts, key = { it.id }) { account ->

@@ -97,7 +97,13 @@ fun InstallmentsScreen(plans: PlansViewModel, onBack: () -> Unit) {
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             if (installments.isEmpty()) {
-                EmptyState("مفيش أقساط", "أضف مشترى مقسّط عشان نتابع المدفوع والمتبقي.")
+                EmptyState(
+                    title = "مفيش أقساط",
+                    hint = "أضف مشترى مقسّط عشان نتابع المدفوع والمتبقي.",
+                    icon = Icons.Filled.Add,
+                    actionLabel = "أضف قسط",
+                    onAction = { editing = null; showEditor = true }
+                )
             } else {
                 LazyColumn {
                     items(installments, key = { it.id }) { item ->

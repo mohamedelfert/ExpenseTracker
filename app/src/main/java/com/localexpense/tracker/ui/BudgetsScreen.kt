@@ -90,7 +90,13 @@ fun BudgetsScreen(
                 if (ctx != null && overall > 0) {
                     BudgetBar(ctx.overallBudget, "صرف ${ctx.monthLabel}")
                 } else {
-                    EmptyState("مفيش ميزانية كلية", "حدد سقف شهري عشان نحسب المتبقي ونحذّرك قبل ما تتخطاه.")
+                    EmptyState(
+                        title = "مفيش ميزانية كلية",
+                        hint = "حدد سقف شهري عشان نحسب المتبقي ونحذّرك قبل ما تتخطاه.",
+                        icon = Icons.Filled.Add,
+                        actionLabel = "حدد الميزانية",
+                        onAction = { editingOverall = true }
+                    )
                 }
             }
 

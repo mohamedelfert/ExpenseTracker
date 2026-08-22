@@ -21,76 +21,39 @@ private val CairoFontFamily = FontFamily(
 
 private val Default = CairoFontFamily
 
+/**
+ * "tnum" (tabular figures) بتخلي كل رقم من 0-9 ياخد نفس العرض بالظبط، فالمبالغ
+ * في الداشبورد والليستات والتقارير متتحركش يمين شمال وقت ما القيمة بتتحدّث أو
+ * بتترتب فوق بعض في عمود. الخاصية دي بتأثر بس على الأرقام (الغربية اللي
+ * formatMinor بيستخدمها)، مش على النص العربي - فمفيش أي تأثير جانبي على شكل
+ * الحروف. لو الخط مدعّمهاش أصلاً بتتجاهل من غير أي ضرر.
+ */
+private const val TabularFigures = "tnum"
+
+private fun tabularStyle(
+    fontWeight: FontWeight,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    lineHeight: androidx.compose.ui.unit.TextUnit,
+    letterSpacing: androidx.compose.ui.unit.TextUnit = 0.sp
+) = TextStyle(
+    fontFamily = Default,
+    fontWeight = fontWeight,
+    fontSize = fontSize,
+    lineHeight = lineHeight,
+    letterSpacing = letterSpacing,
+    fontFeatureSettings = TabularFigures
+)
+
 val AppTypography = Typography(
-    displayMedium = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 34.sp,
-        lineHeight = 40.sp,
-        letterSpacing = (-0.5).sp
-    ),
-    headlineSmall = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 24.sp,
-        lineHeight = 30.sp,
-        letterSpacing = (-0.2).sp
-    ),
-    titleLarge = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 20.sp,
-        lineHeight = 26.sp
-    ),
-    titleMedium = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp,
-        lineHeight = 23.sp
-    ),
-    titleSmall = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
-        lineHeight = 20.sp
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 23.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp
-    ),
-    bodySmall = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 12.5.sp,
-        lineHeight = 18.sp
-    ),
-    labelLarge = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
-        lineHeight = 18.sp,
-        letterSpacing = 0.1.sp
-    ),
-    labelMedium = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 12.5.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.2.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 15.sp,
-        letterSpacing = 0.3.sp
-    )
+    displayMedium = tabularStyle(FontWeight.Bold, 34.sp, 40.sp, (-0.5).sp),
+    headlineSmall = tabularStyle(FontWeight.Bold, 24.sp, 30.sp, (-0.2).sp),
+    titleLarge = tabularStyle(FontWeight.SemiBold, 20.sp, 26.sp),
+    titleMedium = tabularStyle(FontWeight.SemiBold, 17.sp, 23.sp),
+    titleSmall = tabularStyle(FontWeight.SemiBold, 15.sp, 20.sp),
+    bodyLarge = tabularStyle(FontWeight.Normal, 16.sp, 23.sp),
+    bodyMedium = tabularStyle(FontWeight.Normal, 14.sp, 20.sp),
+    bodySmall = tabularStyle(FontWeight.Normal, 12.5.sp, 18.sp),
+    labelLarge = tabularStyle(FontWeight.SemiBold, 14.sp, 18.sp, 0.1.sp),
+    labelMedium = tabularStyle(FontWeight.Medium, 12.5.sp, 16.sp, 0.2.sp),
+    labelSmall = tabularStyle(FontWeight.Medium, 11.sp, 15.sp, 0.3.sp)
 )

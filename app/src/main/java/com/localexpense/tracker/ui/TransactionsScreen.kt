@@ -175,7 +175,9 @@ fun TransactionsScreen(
             if (results.isEmpty()) {
                 EmptyState(
                     title = "مفيش نتايج",
-                    hint = "جرّب كلمة تانية أو امسح الفلاتر."
+                    hint = "جرّب كلمة تانية أو امسح الفلاتر.",
+                    actionLabel = if (!filter.isEmpty) "مسح الفلاتر" else null,
+                    onAction = if (!filter.isEmpty) { { viewModel.clearFilter() } } else null
                 )
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {

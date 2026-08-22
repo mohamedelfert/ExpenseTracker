@@ -448,9 +448,23 @@ fun LegendDot(color: Color) {
     )
 }
 
-/** حالة فاضية موحّدة (شرط الـ UX في الـ spec: حالات فاضية واضحة). */
+/**
+ * حالة فاضية موحّدة (شرط الـ UX في الـ spec: حالات فاضية واضحة).
+ *
+ * الأيقونة معروضة جوه دائرة خلفية ناعمة بدل ما تكون معلّقة لوحدها — نفس
+ * أسلوب أيقونات onboarding — وده بيديها إحساس illustration بسيط من غير ما
+ * نضيف صور فعلية للمشروع. لو معدّى [actionLabel] و[onAction]، بيظهر زرار
+ * دعوة لاتخاذ إجراء واضح تحت النص (مثال: "أضف أول مصروف").
+ */
 @Composable
-fun EmptyState(title: String, hint: String? = null, modifier: Modifier = Modifier, icon: ImageVector? = null) {
+fun EmptyState(
+    title: String,
+    hint: String? = null,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -458,12 +472,20 @@ fun EmptyState(title: String, hint: String? = null, modifier: Modifier = Modifie
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (icon != null) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.surfaceVariant
-            )
+            Box(
+                modifier = Modifier
+                    .size(88.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Spacer(Modifier.height(16.dp))
         }
         Text(title, style = MaterialTheme.typography.titleSmall)
@@ -472,8 +494,15 @@ fun EmptyState(title: String, hint: String? = null, modifier: Modifier = Modifie
             Text(
                 hint,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
+        }
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.height(16.dp))
+            androidx.compose.material3.FilledTonalButton(onClick = onAction) {
+                Text(actionLabel)
+            }
         }
     }
 }
