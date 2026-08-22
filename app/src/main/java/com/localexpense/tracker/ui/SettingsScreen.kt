@@ -84,10 +84,12 @@ fun SettingsScreen(
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
     var showRestrictedHelp by remember { mutableStateOf(false) }
     var crashReport by remember { mutableStateOf(CrashLog.read(context)) }
+    var showExportPasswordDialog by remember { mutableStateOf(false) }
+    var pendingExportPassword by remember { mutableStateOf<String?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument(BackupManager.MIME_TYPE)
-    ) { uri -> if (uri != null) viewModel.exportBackup(uri) }
+    ) { uri -> if (uri != null) viewModel.exportBackup(uri, pendingExportPassword) }
 
     val restoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -107,7 +109,7 @@ fun SettingsScreen(
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding)) {
 
-            if (backupState !is BackupState.Idle) {
+            if (backupState !is BackupState.Idle && backupState !is BackupState.NeedsPassword) {
                 item {
                     val text = when (val state = backupState) {
                         is BackupState.Running -> "جاري التنفيذ..."
@@ -145,10 +147,7 @@ fun SettingsScreen(
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = {
-                            runCatching { exportLauncher.launch(BackupManager.suggestedFileName()) }
-                                .onFailure { viewModel.exportBackupToAppFolder() }
-                        }) {
+                        TextButton(onClick = { showExportPasswordDialog = true }) {
                             Text("حفظ نسخة")
                         }
                         TextButton(onClick = {
@@ -527,6 +526,42 @@ fun SettingsScreen(
         )
     }
 
+    if (showExportPasswordDialog) {
+        var password by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showExportPasswordDialog = false },
+            title = { Text("حفظ نسخة احتياطية") },
+            text = {
+                Column {
+                    Text(
+                        "لو حطيت كلمة سر، الملف هيتشفّر بيها (AES-256) ومحدش يقدر يفتحه من غيرها — " +
+                            "حتى لو وقع في إيد حد تاني. سيبها فاضية لو عايز الملف يفضل نص عادي زي الأول.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("كلمة السر (اختياري)") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingExportPassword = password.ifBlank { null }
+                    showExportPasswordDialog = false
+                    runCatching { exportLauncher.launch(BackupManager.suggestedFileName()) }
+                        .onFailure { viewModel.exportBackupToAppFolder(pendingExportPassword) }
+                }) { Text(if (password.isBlank()) "تصدير من غير تشفير" else "تصدير مشفّر") }
+            },
+            dismissButton = { TextButton(onClick = { showExportPasswordDialog = false }) { Text("إلغاء") } }
+        )
+    }
+
     showRestoreConfirm?.let { uri ->
         AlertDialog(
             onDismissRequest = { showRestoreConfirm = null },
@@ -544,6 +579,43 @@ fun SettingsScreen(
                 }) { Text("استرجاع") }
             },
             dismissButton = { TextButton(onClick = { showRestoreConfirm = null }) { Text("إلغاء") } }
+        )
+    }
+
+    // الملف اللي المستخدم اختاره طلع مشفّر - نطلب كلمة السر (أو نعيد الطلب
+    // لو اللي اتدخلت غلط) بدل ما نفشل الاسترجاع على طول.
+    (backupState as? BackupState.NeedsPassword)?.let { state ->
+        var password by remember(state.uri) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { viewModel.resetBackupState() },
+            title = { Text("النسخة دي محمية بكلمة سر") },
+            text = {
+                Column {
+                    if (state.wasWrong) {
+                        Text(
+                            "كلمة السر غلط، جرب تاني.",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("كلمة السر") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.restoreBackup(state.uri, password) }) {
+                    Text("استرجاع")
+                }
+            },
+            dismissButton = { TextButton(onClick = { viewModel.resetBackupState() }) { Text("إلغاء") } }
         )
     }
 }

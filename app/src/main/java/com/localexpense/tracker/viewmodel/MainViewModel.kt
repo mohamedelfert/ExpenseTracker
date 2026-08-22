@@ -80,6 +80,8 @@ sealed class BackupState {
     data object Running : BackupState()
     data class Done(val message: String) : BackupState()
     data class Error(val message: String) : BackupState()
+    /** الملف المختار مشفّر - لازم كلمة سر (أو اللي اتدخلت غلط) قبل الاسترجاع. */
+    data class NeedsPassword(val uri: Uri, val wasWrong: Boolean) : BackupState()
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -496,13 +498,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ===== النسخ الاحتياطي والاسترجاع =====
 
-    fun exportBackup(uri: Uri) {
+    fun exportBackup(uri: Uri, password: String? = null) {
         viewModelScope.launch {
             _backupState.value = BackupState.Running
             _backupState.value = try {
-                val rows = BackupManager.export(getApplication(), uri)
+                val rows = BackupManager.export(getApplication(), uri, password)
                 settings.lastBackupAt = System.currentTimeMillis()
-                BackupState.Done("تم حفظ نسخة احتياطية فيها $rows سجل")
+                val suffix = if (password.isNullOrBlank()) "" else " (مشفّرة بكلمة سر)"
+                BackupState.Done("تم حفظ نسخة احتياطية فيها $rows سجل$suffix")
             } catch (e: Exception) {
                 BackupState.Error("فشل الحفظ: ${e.message}")
             }
@@ -512,11 +515,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * نسخة احتياطية لمجلد التطبيق - بديل لما منتقي الملفات مش متاح على الجهاز.
      */
-    fun exportBackupToAppFolder() {
+    fun exportBackupToAppFolder(password: String? = null) {
         viewModelScope.launch {
             _backupState.value = BackupState.Running
             _backupState.value = try {
-                val text = BackupManager.encodeToText(getApplication())
+                val text = BackupManager.encodeToText(getApplication(), password)
                 val path = withContext(Dispatchers.IO) {
                     ExportSink.write(
                         getApplication(),
@@ -543,14 +546,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun restoreBackup(uri: Uri) {
+    fun restoreBackup(uri: Uri, password: String? = null) {
         viewModelScope.launch {
             _backupState.value = BackupState.Running
-            _backupState.value = when (val result = BackupManager.restore(getApplication(), uri)) {
+            _backupState.value = when (val result = BackupManager.restore(getApplication(), uri, password)) {
                 is BackupManager.RestoreResult.Success ->
                     BackupState.Done("تم استرجاع ${result.rows} سجل")
                 is BackupManager.RestoreResult.Failure ->
                     BackupState.Error(result.message)
+                is BackupManager.RestoreResult.PasswordRequired ->
+                    BackupState.NeedsPassword(uri, wasWrong = result.wasWrong)
             }
         }
     }

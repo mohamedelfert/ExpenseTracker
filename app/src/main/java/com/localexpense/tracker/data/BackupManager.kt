@@ -15,9 +15,10 @@ import org.json.JSONObject
  * ملف المستخدم بيختاره من منتقي ملفات النظام (SAF) — فمفيش أي رفع لأي سيرفر،
  * والمستخدم هو اللي بيقرر الملف يروح فين.
  *
- * تنبيه أمني مقصود ومعروض للمستخدم في الشاشة: قاعدة البيانات نفسها مشفّرة،
- * لكن **ملف النسخة الاحتياطية نص عادي** (عشان يبقى قابل للقراءة والاستيراد)،
- * فلازم يتحفظ في مكان آمن. تشفير الملف بكلمة سر مرحلة لاحقة لو المستخدم طلبها.
+ * التشفير اختياري بكلمة سر يحددها المستخدم وقت التصدير (AES-256-GCM عبر
+ * [BackupCrypto]، مستقل تمامًا عن مفتاح تشفير قاعدة البيانات نفسها). لو
+ * المستخدم سابها فاضية، الملف بيتحفظ نص عادي زي الأول — قابل للقراءة المباشرة
+ * لكن لازم يتحفظ في مكان آمن.
  *
  * org.json جزء من أندرويد نفسه — مفيش أي مكتبة اتضافت للـ (de)serialization.
  */
@@ -30,6 +31,8 @@ object BackupManager {
     sealed class RestoreResult {
         data class Success(val rows: Int) : RestoreResult()
         data class Failure(val message: String) : RestoreResult()
+        /** الملف مشفّر بكلمة سر ولسه محتاجين ندخلها (أو اللي اتدخلت غلط). */
+        data class PasswordRequired(val wasWrong: Boolean) : RestoreResult()
     }
 
     fun suggestedFileName(now: Long = System.currentTimeMillis()): String =
@@ -37,19 +40,46 @@ object BackupManager {
 
     // ===== تصدير =====
 
-    suspend fun export(context: Context, uri: Uri): Int = withContext(Dispatchers.IO) {
-        val repository = ExpenseRepository(context)
-        val snapshot = repository.snapshot()
-        val json = encode(snapshot)
-        context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
-            out.write(json.toString().toByteArray(Charsets.UTF_8))
-        } ?: error("تعذّر فتح الملف للكتابة")
-        snapshot.totalRows
-    }
+    suspend fun export(context: Context, uri: Uri, password: String? = null): Int =
+        withContext(Dispatchers.IO) {
+            val repository = ExpenseRepository(context)
+            val snapshot = repository.snapshot()
+            val text = encode(snapshot).toString()
+            val output = if (password.isNullOrBlank()) text else encryptEnvelope(text, password)
+            context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                out.write(output.toByteArray(Charsets.UTF_8))
+            } ?: error("تعذّر فتح الملف للكتابة")
+            snapshot.totalRows
+        }
 
     /** نص النسخة الاحتياطية كامل - بيستخدمه المسار الاحتياطي للحفظ. */
-    suspend fun encodeToText(context: Context): String = withContext(Dispatchers.IO) {
-        encode(ExpenseRepository(context).snapshot()).toString()
+    suspend fun encodeToText(context: Context, password: String? = null): String =
+        withContext(Dispatchers.IO) {
+            val text = encode(ExpenseRepository(context).snapshot()).toString()
+            if (password.isNullOrBlank()) text else encryptEnvelope(text, password)
+        }
+
+    // ===== غلاف التشفير =====
+    // ملف مشفّر هو JSON تاني برّاني بيلف نص النسخة الأصلي المشفّر جواه —
+    // مفرّق عن ملف النسخة العادي بحقل "encrypted": true، فبنعرف نطلب كلمة
+    // السر من المستخدم قبل ما نحاول نفك أي حاجة.
+
+    private fun encryptEnvelope(plainText: String, password: String): String {
+        val enc = BackupCrypto.encrypt(plainText, password)
+        return JSONObject().apply {
+            put("encrypted", true)
+            put("kdfIterations", enc.iterations)
+            put("salt", with(BackupCrypto) { enc.salt.toBase64() })
+            put("iv", with(BackupCrypto) { enc.iv.toBase64() })
+            put("ciphertext", with(BackupCrypto) { enc.ciphertext.toBase64() })
+        }.toString()
+    }
+
+    /** بيرجع true لو الملف اللي المستخدم اختاره محمي بكلمة سر. */
+    suspend fun isEncrypted(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        val text = context.contentResolver.openInputStream(uri)
+            ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: return@withContext false
+        runCatching { JSONObject(text).optBoolean("encrypted", false) }.getOrDefault(false)
     }
 
     fun encode(snapshot: BackupSnapshot): JSONObject = JSONObject().apply {
@@ -69,12 +99,27 @@ object BackupManager {
 
     // ===== استيراد =====
 
-    suspend fun restore(context: Context, uri: Uri): RestoreResult = withContext(Dispatchers.IO) {
-        val text = try {
+    suspend fun restore(context: Context, uri: Uri, password: String? = null): RestoreResult =
+        withContext(Dispatchers.IO) {
+        val rawText = try {
             context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
         } catch (e: Exception) {
             return@withContext RestoreResult.Failure("تعذّر قراءة الملف: ${e.message}")
         } ?: return@withContext RestoreResult.Failure("الملف فاضي أو مش موجود")
+
+        val isEncryptedFile = runCatching { JSONObject(rawText).optBoolean("encrypted", false) }
+            .getOrDefault(false)
+
+        val text = if (isEncryptedFile) {
+            if (password.isNullOrBlank()) return@withContext RestoreResult.PasswordRequired(wasWrong = false)
+            try {
+                decryptEnvelope(rawText, password)
+            } catch (e: BackupCrypto.WrongPasswordException) {
+                return@withContext RestoreResult.PasswordRequired(wasWrong = true)
+            } catch (e: Exception) {
+                return@withContext RestoreResult.Failure("ملف النسخة المشفّر تالف")
+            }
+        } else rawText
 
         val snapshot = try {
             decode(text)
@@ -98,6 +143,17 @@ object BackupManager {
         } catch (e: Exception) {
             RestoreResult.Failure("فشل الاسترجاع: ${e.message}")
         }
+    }
+
+    private fun decryptEnvelope(envelopeText: String, password: String): String {
+        val root = JSONObject(envelopeText)
+        val encrypted = BackupCrypto.Encrypted(
+            salt = with(BackupCrypto) { root.getString("salt").fromBase64() },
+            iv = with(BackupCrypto) { root.getString("iv").fromBase64() },
+            ciphertext = with(BackupCrypto) { root.getString("ciphertext").fromBase64() },
+            iterations = root.optInt("kdfIterations", BackupCrypto.ITERATIONS)
+        )
+        return BackupCrypto.decrypt(encrypted, password)
     }
 
     class BackupFormatException(message: String) : Exception(message)
